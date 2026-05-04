@@ -34,10 +34,10 @@ class Problem(Base):
     __tablename__="problems"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str] = mapped_column(String(100))
-    difficulty: Mapped[str] = mapped_column(String(10))
-    url: Mapped[str] = mapped_column(String(50))
-    sheet_name: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(255), index=True)
+    difficulty: Mapped[str] = mapped_column(String(50))
+    url: Mapped[str] = mapped_column(Text)
+    sheet_name: Mapped[str] = mapped_column(String(255), index=True)
 
     solved_by = relationship("UserSolution", back_populates="problem", cascade="all, delete-orphan")
 
@@ -50,7 +50,7 @@ class UserSolution(Base):
     solved_at : Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utc_now)
 
     user = relationship("User", back_populates="solutions")
-    problems = relationship("Problem", back_populates="solved_by")
+    problem = relationship("Problem", back_populates="solved_by")
 
 class CustomProblem(Base):
     __tablename__ = "custom_problems"
