@@ -13,3 +13,14 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL, echo=True)
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+def get_db():
+    """
+    Dependency function to yield a database session for each API request
+    and ensure it gets closed automatically afterwards.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

@@ -8,7 +8,7 @@ def get_user_by_email(db: Session, email: str):
     Fetches a user by their email address. Returns None if not found.
     """
     stmt = select(models.User).where(models.User.email==email)
-    return db.scalars(stmt).first
+    return db.scalars(stmt).first()
 
 def create_user(db: Session, username: str, email: str, password: str):
     """
