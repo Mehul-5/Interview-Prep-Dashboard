@@ -8,18 +8,30 @@ import Streak from "./components/Streak";
 import Weekly from "./components/Weekly";
 
 function App() {
-  const { isAuthenticated, token } = useContext(AuthContext);
+  // We extract 'logout' so we can use it if the token dies
+  const { isAuthenticated, token, logout } = useContext(AuthContext);
   const [problems, setProblems] = useState([]);
 
   // ── THE DATA BRIDGE ──
   const fetchProgress = () => {
     if (!isAuthenticated || !token) return;
+    
     fetch("http://127.0.0.1:8000/my-progress", {
       headers: { Authorization: `Bearer ${token}` }
     })
-    .then(res => res.json())
-    .then(data => setProblems(data))
-    .catch(err => console.error("Bridge failed:", err));
+    .then(async (res) => {
+      // SECURITY FIX: If token is expired (401), wipe it and kick user to login
+      if (!res.ok) {
+        if (res.status === 401) logout(); 
+        throw new Error("Data bridge failed or unauthorized");
+      }
+      return res.json();
+    })
+    .then(data => {
+      // PREVENT CRASH: Only save if it's an actual array
+      if (Array.isArray(data)) setProblems(data);
+    })
+    .catch(err => console.error(err));
   };
 
   useEffect(() => {
@@ -31,10 +43,8 @@ function App() {
       <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/sheets" />} />
       <Route path="/streak" element={isAuthenticated ? <Streak problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/weekly" element={isAuthenticated ? <Weekly problems={problems} /> : <Navigate to="/login" />} />
-      
-      {/* Notice we are passing the data and the refresh trigger down to the browser */}
       <Route path="/sheets" element={isAuthenticated ? <SheetBrowser problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
-      <Route path="/" element={isAuthenticated ? <Dashboard problems={problems} /> : <Navigate to="/login" />} />
+      <Route path="/" element={isAuthenticated ? <Dashboard problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
     </Routes>
   );
 }

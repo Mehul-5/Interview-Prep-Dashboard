@@ -1,12 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware # <-- ADD THIS IMPORT
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from datetime import timedelta
-from typing import List
-from datetime import datetime
+from datetime import timedelta, datetime, timezone
+from typing import List, Any
+from pydantic import BaseModel
 import jwt
-
 import models, schemas, crud, auth
 from db import engine, get_db
 
@@ -14,172 +13,174 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Interview Prep Dashboard API")
 
-# --- SECURITY GATEKEEPER ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    Intercepts the request, reads the JWT token, and returns the user's UUID.
-    If the token is fake, expired, or missing, it violently rejects the request.
-    """
     try:
-        # Decode the token using the secret key from auth.py
         payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         user_id: str = payload.get("sub")
-        
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token structure")
-            
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-# --- CORS SETUP ---
-# This allows your React frontend to communicate with this FastAPI backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Vite's default ports
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
-    allow_methods=["*"], # Allows GET, POST, PUT, DELETE
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- AUTHENTICATION ROUTES ---
-
+# --- AUTHENTICATION ---
 @app.post("/signup", response_model=schemas.UserResponse)
 def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    """
-    Registers a new user. 
-    Notice how `user` is typed as `schemas.UserCreate`. Pydantic handles the validation automatically.
-    """
-    # 1. Check if email already exists
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # 2. Create the user
-    new_user = crud.create_user(
-        db=db, 
-        username=user.username, 
-        email=user.email, 
-        password=user.password
-    )
-    
-    # 3. Return the user (FastAPI automatically filters out the password because of schemas.UserResponse)
-    return new_user
+        raise HTTPException(status_code=400, detail="Email already registered")
+    return crud.create_user(db=db, username=user.username, email=user.email, password=user.password)
 
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    
-    # 1. Fetch the user from the database
-    # Note: OAuth2PasswordRequestForm forces the field name to be 'username', 
-    # even though our frontend will be sending an email address in that field.
     user = crud.get_user_by_email(db, email=form_data.username)
-
-    # 2. Security Check: Does the user exist AND does the password match?
     if not user or not auth.verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # 3. Generate the JWT token
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    # We cast user.id to a string because UUIDs cannot be serialized into JSON directly
-    access_token = auth.create_access_token(
-        data={"sub": str(user.id)}, 
-        expires_delta=access_token_expires
-    )
-
-    # 4. Return the token exactly as schemas.Token demands
+        raise HTTPException(status_code=401, detail="Incorrect email or password", headers={"WWW-Authenticate": "Bearer"})
+    access_token = auth.create_access_token(data={"sub": str(user.id)}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- DATA DELIVERY ROUTES ---
-
-@app.get("/sheets", response_model=List[str])
-def get_available_sheets(db: Session = Depends(get_db)):
-    """
-    Returns a simple list of strings containing the names of all seeded sheets.
-    """
-    return crud.get_all_sheet_names(db)
-
-@app.get("/problems/{sheet_name}", response_model=List[schemas.ProblemResponse])
-def get_problems(sheet_name: str, db: Session = Depends(get_db)):
-    """
-    Fetches all problems for a specific sheet. 
-    """
-    problems = crud.get_problems_by_sheet(db, sheet_name=sheet_name)
+# --- SHEETS & PROBLEMS ---
+@app.get("/sheets")
+def get_available_sheets(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Dynamically returns ALL sheets with their exact total problem counts"""
+    sheet_names = crud.get_all_sheet_names(db)
+    result = []
     
-    if not problems:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Sheet not found or empty"
-        )
+    for sn in sheet_names:
+        name = sn[0] if isinstance(sn, tuple) else sn
+        count = db.query(models.Problem).filter(models.Problem.sheet_name == name).count()
+        result.append({"id": name, "name": name, "totalProblems": count})
         
-    return problems
+    custom_count = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).count()
+    result.append({
+        "id": "Custom Problems",
+        "name": "Custom Problems",
+        "totalProblems": custom_count if custom_count > 0 else 1 # Fallback to 1 to prevent NaN%
+    })
+    
+    return result
 
-# --- PROGRESS TRACKING ROUTES ---
+@app.get("/problems/{sheet_name}")
+def get_problems(sheet_name: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Fetch ALL custom problems regardless of solved status so they stay in the table
+    if sheet_name == "Custom Problems":
+        cps = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
+        return [{
+            "id": f"custom-{cp.id}",
+            "title": cp.title,
+            "difficulty": cp.difficulty,
+            "url": cp.url,
+            "topic": cp.topic,
+            "sheet_name": "Custom Problems"
+        } for cp in cps]
+        
+    problems = crud.get_problems_by_sheet(db, sheet_name=sheet_name)
+    if not problems:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+        
+    return [{
+        "id": str(p.id),
+        "title": p.title,
+        "difficulty": p.difficulty,
+        "url": p.url,
+        "topic": getattr(p, 'topic', 'General'),
+        "sheet_name": p.sheet_name
+    } for p in problems]
 
-@app.get("/solutions", response_model=List[int])
+# --- PROGRESS TOGGLES ---
+@app.get("/solutions", response_model=List[str])
 def get_my_solutions(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """
-    Fetches the user's solved problems.
-    Instead of returning massive JSON objects, we map it down to a simple 
-    array of IDs: [1, 5, 23, 104] so React can easily load it into a Set().
-    """
     solutions = crud.get_user_solutions(db, user_id=user_id)
-    return [sol.problem_id for sol in solutions]
+    solved_ids = [str(sol.problem_id) for sol in solutions]
+    
+    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
+    for cp in custom_probs:
+        if cp.source == "Custom": 
+            solved_ids.append(f"custom-{cp.id}")
+            
+    return solved_ids
 
 @app.post("/solutions/{problem_id}")
 def mark_problem_solved(problem_id: int, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Saves a solved problem to PostgreSQL"""
-    # Safety Check: Don't let the user insert duplicates
-    existing = db.query(models.UserSolution).filter(
-        models.UserSolution.user_id == user_id, 
-        models.UserSolution.problem_id == problem_id
-    ).first()
-    
+    existing = db.query(models.UserSolution).filter(models.UserSolution.user_id == user_id, models.UserSolution.problem_id == problem_id).first()
     if not existing:
         crud.create_user_solution(db, user_id=user_id, problem_id=problem_id)
-        
     return {"message": "Problem marked as solved"}
 
 @app.delete("/solutions/{problem_id}")
 def unmark_problem_solved(problem_id: int, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Removes a solved problem from PostgreSQL"""
-    existing = db.query(models.UserSolution).filter(
-        models.UserSolution.user_id == user_id, 
-        models.UserSolution.problem_id == problem_id
-    ).first()
-    
+    existing = db.query(models.UserSolution).filter(models.UserSolution.user_id == user_id, models.UserSolution.problem_id == problem_id).first()
     if existing:
         db.delete(existing)
         db.commit()
-        
     return {"message": "Problem unmarked"}
+
+# --- CUSTOM PROBLEMS ---
+class CustomProblemInput(BaseModel):
+    title: str
+    difficulty: str
+    url: str = ""
+    topic: str = "Custom"
+    date: str = ""  
+    note: str = ""  
+
+@app.post("/custom-problems")
+def add_custom_problem(prob: CustomProblemInput, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        parsed_date = datetime.strptime(prob.date, "%Y-%m-%d").replace(tzinfo=timezone.utc) if prob.date else datetime.now(timezone.utc)
+    except ValueError:
+        parsed_date = datetime.now(timezone.utc)
+
+    new_cp = models.CustomProblem(
+        user_id=user_id, title=prob.title, difficulty=prob.difficulty, url=prob.url,
+        topic=prob.topic, source="Custom", notes=prob.note, solved_at=parsed_date 
+    )
+    db.add(new_cp)
+    db.commit()
+    return {"message": "Custom problem saved successfully"}
+
+@app.put("/custom-problems/{problem_id}/toggle")
+def toggle_custom_problem(problem_id: int, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    cp = db.query(models.CustomProblem).filter(models.CustomProblem.id == problem_id, models.CustomProblem.user_id == user_id).first()
+    if cp:
+        cp.source = "Custom-Revise" if cp.source == "Custom" else "Custom"
+        db.commit()
+        return {"status": cp.source}
+    raise HTTPException(status_code=404, detail="Problem not found")
 
 @app.get("/my-progress")
 def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Returns the full detailed problem objects for the React Dashboard/Streak charts"""
-    solutions = crud.get_user_solutions(db, user_id=user_id)
-    
     result = []
+    solutions = crud.get_user_solutions(db, user_id=user_id)
     for sol in solutions:
         prob = db.query(models.Problem).filter(models.Problem.id == sol.problem_id).first()
         if prob:
-            # Safely grab the creation date or fallback to today
-            solved_date = getattr(sol, 'created_at', datetime.utcnow())
+            date_val = getattr(sol, 'solved_at', None) or getattr(sol, 'created_at', None) or datetime.utcnow()
             result.append({
-                "id": prob.id,
-                "name": prob.title,
-                "level": prob.difficulty,
-                "topic": getattr(prob, 'topic', 'General'), 
-                "date": solved_date.strftime("%Y-%m-%d") if isinstance(solved_date, datetime) else str(solved_date)[:10],
+                "id": str(prob.id), "name": prob.title, "level": prob.difficulty,
+                "topic": getattr(prob, 'topic', 'General'), "url": prob.url,
+                "date": date_val.strftime("%Y-%m-%d") if isinstance(date_val, datetime) else str(date_val)[:10],
                 "fromSheet": prob.sheet_name
             })
+            
+    # ONLY map active/checked custom problems to the Dashboard/Streak graphs
+    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id, models.CustomProblem.source == "Custom").all()
+    for cp in custom_probs:
+        cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
+        result.append({
+            "id": f"custom-{cp.id}", "name": cp.title, "level": cp.difficulty,
+            "topic": getattr(cp, 'topic', 'Custom'), "url": cp.url,
+            "date": cp_date.strftime("%Y-%m-%d") if isinstance(cp_date, datetime) else str(cp_date)[:10],
+            "fromSheet": "Custom Problems" 
+        })
     return result

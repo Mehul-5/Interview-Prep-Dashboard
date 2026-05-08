@@ -1,60 +1,65 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext"; 
 
-function AddProblemForm({ problems, setProblems }) {
-
-  // ── FORM STATE ─────────────────────────────────────────────────────────────
-  // Each field has its own useState hook. This is "controlled components" pattern
-  // — React is the single source of truth for every input's value.
-  // The input's value= prop reads from state, onChange= writes back to state.
+function AddProblemForm({ onUpdate }) {
+  const { token } = useContext(AuthContext); 
+  
   const [name,  setName]  = useState("");
   const [level, setLevel] = useState("Easy");
   const [date,  setDate]  = useState("");
   const [note,  setNote]  = useState("");
   const [topic, setTopic] = useState("arrays");
+  const [url,   setUrl]   = useState(""); // <-- The URL field you requested
+  const [loading, setLoading] = useState(false);
 
-  // ── SUBMIT HANDLER ─────────────────────────────────────────────────────────
-  // e.preventDefault() stops the browser's default form behaviour (page reload).
-  // Without it, the page would refresh and all React state would be wiped.
-  const handlesubmit = (e) => {
+  const handlesubmit = async (e) => {
     e.preventDefault();
 
-    // Validation: if any required field is empty, alert and bail out early.
-    // This is a "guard clause" — fail fast before doing any real work.
-    if (!name || !level || !date || !note) {
-      alert("Fill the required Information");
+    if (!name || !level || !topic) {
+      alert("Please fill out the Problem Name and Topic.");
       return;
     }
 
-    // Build the new problem object.
-    // Date.now() gives a unique numeric timestamp as the ID —
-    // good enough for localStorage-based apps without a backend.
-    const newProblem = {
-      id:    Date.now(),
-      name:  name,
-      level: level,
-      date:  date,
-      note:  note,
-      topic: topic,
-    };
+    setLoading(true);
 
-    // Spread [...problems, newProblem] creates a NEW array (immutability).
-    // Never push() directly into state — React won't detect the change.
-    setProblems([...problems, newProblem]);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/custom-problems", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, 
+        },
+        body: JSON.stringify({ 
+          title: name, 
+          difficulty: level, 
+          url: url, // <-- Sending the URL
+          topic: topic,
+          date: date, 
+          note: note  
+        }),
+      });
 
-    // Also persist to localStorage so data survives page refreshes.
-    localStorage.setItem("problems", JSON.stringify([...problems, newProblem]));
-
-    // Reset all fields back to defaults after successful submission.
-    setName("");
-    setLevel("Easy");
-    setDate("");
-    setNote("");
-    setTopic("arrays");
+      if (res.ok) {
+        setName("");
+        setLevel("Easy");
+        setDate("");
+        setNote("");
+        setTopic("arrays");
+        setUrl("");
+        
+        // Trigger the global update wire to refresh the charts
+        if (onUpdate) onUpdate();
+      } else {
+        const errorData = await res.json();
+        alert("BACKEND REJECTED IT: " + JSON.stringify(errorData));
+      }
+    } catch (err) {
+      alert("CRITICAL NETWORK ERROR: Is the Python backend running?");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ── TOPIC OPTIONS ──────────────────────────────────────────────────────────
-  // Extracted as an array so the JSX stays clean.
-  // Each object has value (stored in localStorage) and label (shown to user).
   const topics = [
     { value: "complexity",           label: "Time & Space Complexity"   },
     { value: "arrays",               label: "Arrays"                    },
@@ -81,163 +86,87 @@ function AddProblemForm({ problems, setProblems }) {
     { value: "two-pointers",         label: "Two Pointers"              },
   ];
 
-  // ── DIFFICULTY CONFIG ──────────────────────────────────────────────────────
-  // Used to highlight the active difficulty pill with the right accent color.
   const difficultyConfig = {
-    Easy:   { active: "bg-green-500/20 text-green-400 border-green-500/40",   inactive: "text-gray-500 border-gray-700 hover:border-gray-600" },
-    Medium: { active: "bg-amber-500/20  text-amber-400  border-amber-500/40", inactive: "text-gray-500 border-gray-700 hover:border-gray-600" },
-    Hard:   { active: "bg-red-500/20   text-red-400   border-red-500/40",     inactive: "text-gray-500 border-gray-700 hover:border-gray-600" },
+    Easy:   { active: "bg-green-500/20 text-green-400 border-green-500/40",   inactive: "text-slate-500 border-white/10 hover:border-white/20" },
+    Medium: { active: "bg-amber-500/20  text-amber-400  border-amber-500/40", inactive: "text-slate-500 border-white/10 hover:border-white/20" },
+    Hard:   { active: "bg-red-500/20   text-red-400   border-red-500/40",     inactive: "text-slate-500 border-white/10 hover:border-white/20" },
   };
 
-  // ── SHARED INPUT CLASSES ───────────────────────────────────────────────────
-  // DRY: define once, reuse on every input/select instead of repeating the string.
   const inputCls = `
     w-full px-4 py-2.5 rounded-xl text-sm text-gray-100
-    bg-gray-800 border border-gray-700
+    bg-white/[0.06] border border-white/10
     placeholder-gray-600
-    focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50
+    focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/30
     transition duration-150
   `;
 
   return (
-    // ── OUTER WRAPPER ──────────────────────────────────────────────────────
-    // max-w-xl + mx-auto centers the form on wide screens.
-    <div className="w-full max-w-xl mx-auto">
-
-      {/* ── SECTION HEADER ──────────────────────────────────────────────── */}
+    <div className="w-full bg-white/[0.04] border border-white/10 backdrop-blur-xl rounded-3xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20
-                        flex items-center justify-center text-base">
+        <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-base">
           ➕
         </div>
         <div>
           <h2 className="text-base font-semibold text-white">Add a Problem</h2>
-          <p className="text-xs text-gray-500">Fill in the details and hit submit</p>
+          <p className="text-xs text-slate-400 mt-0.5">Log a custom problem to your tracker</p>
         </div>
       </div>
 
-      {/* ── FORM CARD ───────────────────────────────────────────────────────
-          All inputs live inside one <form> tag so pressing Enter or clicking
-          the submit button both trigger handlesubmit via onSubmit.
-      ──────────────────────────────────────────────────────────────────── */}
-      <form
-        onSubmit={handlesubmit}
-        className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-5"
-      >
-
-        {/* ── PROBLEM NAME ──────────────────────────────────────────────── */}
+      <form onSubmit={handlesubmit} className="space-y-5">
         <div>
-          <label className="block text-xs font-medium text-gray-400 uppercase
-                            tracking-wider mb-2">
+          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
             Problem Name <span className="text-red-400">*</span>
           </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Two Sum, Merge Intervals..."
-            className={inputCls}
-          />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Two Sum..." className={inputCls} />
         </div>
 
-        {/* ── DIFFICULTY — pill toggle instead of a plain dropdown ──────── */}
-        {/* Clicking a pill calls setLevel() with that difficulty's value.   */}
-        {/* The active pill gets an accent color via difficultyConfig above. */}
         <div>
-          <label className="block text-xs font-medium text-gray-400 uppercase
-                            tracking-wider mb-2">
+          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
             Difficulty <span className="text-red-400">*</span>
           </label>
           <div className="flex gap-2">
             {["Easy", "Medium", "Hard"].map((lvl) => (
-              <button
-                key={lvl}
-                type="button"               // prevent accidental form submission
-                onClick={() => setLevel(lvl)}
-                className={`
-                  flex-1 py-2 rounded-xl text-sm font-medium border
-                  transition-all duration-150 active:scale-95
-                  ${level === lvl
-                    ? difficultyConfig[lvl].active
-                    : difficultyConfig[lvl].inactive}
-                `}
-              >
+              <button key={lvl} type="button" onClick={() => setLevel(lvl)} className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-all duration-150 active:scale-95 ${level === lvl ? difficultyConfig[lvl].active : difficultyConfig[lvl].inactive}`}>
                 {lvl}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── DATE + TOPIC — side by side on wider screens ──────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* Date */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase
-                              tracking-wider mb-2">
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
               Date <span className="text-red-400">*</span>
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={inputCls}
-            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </div>
-
-          {/* Topic dropdown */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 uppercase
-                              tracking-wider mb-2">
-              Topic
-            </label>
-            {/* value={topic} + onChange keeps this a controlled select —
-                React always knows exactly which option is selected. */}
-            <select
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className={inputCls}
-            >
-              {/* Map over the topics array — cleaner than 23 hardcoded <option> tags */}
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Topic</label>
+            <select value={topic} onChange={(e) => setTopic(e.target.value)} className={inputCls}>
               {topics.map((t) => (
-                <option key={t.value} value={t.value}
-                        className="bg-gray-800 text-gray-100">
-                  {t.label}
-                </option>
+                <option key={t.value} value={t.value} className="bg-slate-900 text-gray-100">{t.label}</option>
               ))}
             </select>
           </div>
-
         </div>
 
-        {/* ── NOTE ──────────────────────────────────────────────────────── */}
         <div>
-          <label className="block text-xs font-medium text-gray-400 uppercase
-                            tracking-wider mb-2">
-            Note <span className="text-red-400">*</span>
+          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+            Problem Link <span className="text-slate-600 normal-case ml-1">(optional)</span>
           </label>
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Key insight, approach used, time taken..."
-            className={inputCls}
-          />
+          <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://leetcode.com/..." className={inputCls} />
         </div>
 
-        {/* ── SUBMIT BUTTON ─────────────────────────────────────────────── */}
-        {/* type="submit" triggers the form's onSubmit={handlesubmit}.       */}
-        {/* w-full makes it span the full card width for easy tapping.       */}
-        <button
-          type="submit"
-          className="w-full py-3 rounded-xl text-sm font-semibold
-                     bg-orange-500 hover:bg-orange-400
-                     text-white transition-all duration-150
-                     active:scale-[0.98] mt-2"
-        >
-          Add Problem →
-        </button>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+            Note <span className="text-slate-600 normal-case ml-1">(optional)</span>
+          </label>
+          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Key insight, approach used, time taken..." className={inputCls} />
+        </div>
 
+        <button type="submit" disabled={loading} className="w-full py-3 rounded-2xl text-sm font-semibold bg-orange-500 hover:bg-orange-400 text-white transition-all duration-150 active:scale-[0.98] shadow-[0_0_20px_rgba(249,115,22,0.25)] mt-2 disabled:opacity-50">
+          {loading ? "Saving..." : "Add Problem →"}
+        </button>
       </form>
     </div>
   );

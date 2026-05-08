@@ -1,78 +1,36 @@
-import { Link, useLocation } from "react-router-dom";
+import { useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 function Navbar() {
-  const location = useLocation();
+  const { logout } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-  const links = [
-    { path: "/",         label: "Dashboard" },
-    { path: "/sheets",   label: "Sheets"    },
-    { path: "/problems", label: "Problems"  },
-    { path: "/weekly",   label: "Weekly"    },
-    { path: "/streak",   label: "Streak"    },
-    // { path: "/AI",       label: "AI Coach"   },
-  ];
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
-    <nav
-      className="
-        sticky top-0 z-50
-        border-b border-white/10
-        bg-[#020617]/80 backdrop-blur-xl
-        px-6 lg:px-8 h-16
-        flex items-center justify-between
-        shadow-[0_8px_30px_rgba(0,0,0,0.25)]
-      "
-    >
-      {/* Logo */}
-      <div className="flex items-center gap-3">
-        <div
-          className="
-            w-9 h-9 rounded-xl
-            bg-gradient-to-br from-indigo-500 to-cyan-400
-            flex items-center justify-center
-            shadow-lg shadow-indigo-500/20
-            ring-1 ring-white/10
-          "
-        >
-          <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
-            <path d="M2 10V5l4-3 4 3v5H8V7H4v3H2Z" fill="currentColor" />
-          </svg>
-        </div>
-
-        <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold text-white tracking-tight">
-            DSA Tracker
-          </span>
-          <span className="text-[11px] text-slate-400 tracking-wide">
-            Track Smart Prepare Smarter
-          </span>
+    <nav className="relative z-20 flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02] backdrop-blur-md gap-4 sm:gap-0">
+      <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full sm:w-auto">
+        <Link to="/" className="text-white font-bold text-lg tracking-wide hover:text-orange-400 transition-colors">
+          DSA Tracker
+        </Link>
+        {/* Removed 'hidden md:flex', added wrapping and centering for mobile */}
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+          <Link to="/sheets" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Sheets</Link>
+          <Link to="/streak" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Streak</Link>
+          <Link to="/weekly" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Weekly</Link>
         </div>
       </div>
-
-      {/* Nav links */}
-      <div className="flex items-center gap-1 p-1 rounded-2xl bg-white/[0.03] border border-white/10">
-        {links.map(({ path, label }) => {
-          const isActive = location.pathname === path;
-
-          return (
-            <Link
-              key={path}
-              to={path}
-              className={`
-                px-4 py-2 rounded-xl text-sm font-medium
-                transition-all duration-300
-                ${
-                  isActive
-                    ? "bg-gradient-to-r from-indigo-500/20 to-cyan-400/10 text-white border border-indigo-400/20 shadow-md shadow-indigo-500/10"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.06]"
-                }
-              `}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </div>
+      
+      <button 
+        onClick={handleLogout}
+        className="text-xs font-semibold px-4 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all duration-200"
+      >
+        Sign Out
+      </button>
     </nav>
   );
 }

@@ -7,7 +7,6 @@ function ProblemTable({ problems, onUpdate }) {
   const [selectedTopic, setSelectedTopic] = useState("All");
   const [search, setSearch] = useState("");
 
-  // ── 1. FETCH LIVE CHECKBOX STATE ──
   useEffect(() => {
     if (!token) return;
     fetch("http://127.0.0.1:8000/solutions", {
@@ -28,29 +27,39 @@ function ProblemTable({ problems, onUpdate }) {
     return topicMatch && searchMatch;
   });
 
-  // ── 2. SECURE DATABASE TOGGLE ──
   const toggleSolved = async (problem) => {
-    const isSolved = solvedIds.has(problem.id);
+    const strId = String(problem.id);
+    const isCustom = strId.startsWith("custom-");
+    const isSolved = solvedIds.has(strId);
 
-    // Instant Optimistic UI Update
+    // Instant UI Response
     const newIds = new Set(solvedIds);
-    if (isSolved) newIds.delete(problem.id);
-    else newIds.add(problem.id);
+    if (isSolved) newIds.delete(strId);
+    else newIds.add(strId);
     setSolvedIds(newIds);
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/solutions/${problem.id}`, {
-        method: isSolved ? "DELETE" : "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let res;
+      if (isCustom) {
+        // Ping our new custom revision endpoint
+        const cpId = strId.split("-")[1];
+        res = await fetch(`http://127.0.0.1:8000/custom-problems/${cpId}/toggle`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        // Ping standard endpoint
+        res = await fetch(`http://127.0.0.1:8000/solutions/${strId}`, {
+          method: isSolved ? "DELETE" : "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
 
       if (!res.ok) throw new Error("Database update failed");
-
-      // Database accepted the change. Tell App.jsx to fetch the new Dashboard charts.
       if (onUpdate) onUpdate();
     } catch (err) {
       console.error(err);
-      setSolvedIds(solvedIds); // Revert the UI if the backend failed
+      setSolvedIds(solvedIds); // Revert if failed
     }
   };
 
@@ -63,27 +72,18 @@ function ProblemTable({ problems, onUpdate }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-5 px-4 pt-4">
         {topics.map((topic) => (
           <button
             key={topic}
             onClick={() => setSelectedTopic(topic)}
-            className={`
-              px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all duration-300
-              ${selectedTopic === topic ? "bg-orange-500/20 text-orange-300 border-orange-400/30 shadow-[0_0_15px_rgba(251,146,60,0.15)]" : "bg-white/[0.03] text-slate-400 border-white/10 hover:bg-white/[0.06] hover:text-white"}
-            `}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all duration-300 ${selectedTopic === topic ? "bg-orange-500/20 text-orange-300 border-orange-400/30 shadow-[0_0_15px_rgba(251,146,60,0.15)]" : "bg-white/[0.03] text-slate-400 border-white/10 hover:bg-white/[0.06] hover:text-white"}`}
           >
             {topic}
           </button>
         ))}
 
-        <input
-          type="text"
-          placeholder="Search problems..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="ml-auto px-4 py-2 rounded-xl text-xs bg-white/[0.04] border border-white/10 text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-400/40 focus:bg-white/[0.06] transition-all duration-300 backdrop-blur"
-        />
+        <input type="text" placeholder="Search problems..." value={search} onChange={(e) => setSearch(e.target.value)} className="ml-auto px-4 py-2 rounded-xl text-xs bg-white/[0.04] border border-white/10 text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-400/40 focus:bg-white/[0.06] transition-all duration-300 backdrop-blur" />
       </div>
 
       <div className="rounded-3xl border border-white/10 overflow-hidden bg-white/[0.03] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
@@ -97,18 +97,19 @@ function ProblemTable({ problems, onUpdate }) {
           <div className="px-4 py-12 text-center text-slate-500 text-sm">No problems found.</div>
         ) : (
           filtered.map((problem, index) => {
-            const solved = solvedIds.has(problem.id);
+            const solved = solvedIds.has(String(problem.id));
 
             return (
-              <div
-                key={problem.id}
-                className={`grid grid-cols-[2rem_1fr_6rem_5rem_4rem_3rem] gap-2 px-4 py-3 items-center border-b border-white/5 last:border-b-0 transition-all duration-200 ${solved ? "opacity-40" : "hover:bg-white/[0.05] hover:scale-[1.005]"}`}
-              >
+              <div key={problem.id} className={`grid grid-cols-[2rem_1fr_6rem_5rem_4rem_3rem] gap-2 px-4 py-3 items-center border-b border-white/5 last:border-b-0 transition-all duration-200 ${solved ? "opacity-40" : "hover:bg-white/[0.05] hover:scale-[1.005]"}`}>
                 <span className="text-xs text-slate-500">{index + 1}</span>
                 <span className={`text-sm ${solved ? "line-through text-slate-500" : "text-slate-100"}`}>{problem.name}</span>
                 <span className="text-xs text-slate-400 capitalize">{problem.topic || "General"}</span>
                 <span className={`text-xs font-semibold ${diffColor(problem.level)}`}>{problem.level}</span>
-                <a href={problem.link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-indigo-300 hover:text-indigo-200 hover:underline transition">LC →</a>
+                {problem.link ? (
+                  <a href={problem.link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-indigo-300 hover:text-indigo-200 hover:underline transition">LC →</a>
+                ) : (
+                  <span className="text-xs text-slate-600">-</span>
+                )}
                 <button onClick={() => toggleSolved(problem)} className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all duration-300 mx-auto ${solved ? "bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]" : "border-slate-500 hover:border-emerald-400 hover:scale-110"}`}>
                   {solved && (
                     <svg className="w-3 h-3 text-white" viewBox="0 0 10 10" fill="none">
@@ -121,10 +122,6 @@ function ProblemTable({ problems, onUpdate }) {
           })
         )}
       </div>
-
-      <p className="text-xs text-slate-500 mt-4 text-right">
-        {filtered.length} problems shown {selectedTopic !== "All" && ` in ${selectedTopic}`}
-      </p>
     </div>
   );
 }

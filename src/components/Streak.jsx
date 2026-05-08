@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import Navbar from "./Navbar";
 
-// ADD { problems = [] } as a prop
+// Accept the data from App.jsx via props
 function Streak({ problems = [] }) { 
-  
+
   const dayKey = (d) => {
     const copy = new Date(d);
     copy.setHours(0, 0, 0, 0);

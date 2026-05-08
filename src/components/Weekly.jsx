@@ -5,7 +5,7 @@ import {
   CartesianGrid, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from "recharts";
 
-// ADD { problems = [] } as a prop
+// Accept the data from App.jsx via props
 function Weekly({ problems = [] }) {
 
   const today = new Date();
