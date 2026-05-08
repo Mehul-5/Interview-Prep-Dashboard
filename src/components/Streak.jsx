@@ -1,12 +1,9 @@
 import { useMemo } from "react";
 import Navbar from "./Navbar";
 
-function Streak() {
-  const problems = useMemo(
-    () => JSON.parse(localStorage.getItem("problems")) || [],
-    []
-  );
-
+// ADD { problems = [] } as a prop
+function Streak({ problems = [] }) { 
+  
   const dayKey = (d) => {
     const copy = new Date(d);
     copy.setHours(0, 0, 0, 0);

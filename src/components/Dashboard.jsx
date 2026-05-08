@@ -1,9 +1,9 @@
 import Navbar from "./Navbar";
 import { useNavigate } from "react-router-dom";
-import sheets from "../data/sheets";
 
-function Dashboard({ problems, setProblems }) {
+function Dashboard({ problems = [], setProblems }) {
   const navigate = useNavigate();
+  const sheets = [];
 
   // ── HARD PROBLEMS ─────────────────────────────────────────────────────────
   const hardproblems = problems.filter((problem) => {

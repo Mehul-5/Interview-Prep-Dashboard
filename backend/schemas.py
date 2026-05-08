@@ -24,3 +24,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     user_id: str | None = None
+
+class ProblemResponse(BaseModel):
+    id: int
+    title: str
+    difficulty: str
+    url: str
+    sheet_name: str
+    
+    class Config:
+        from_attributes = True

@@ -5,9 +5,8 @@ import {
   CartesianGrid, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from "recharts";
 
-function Weekly() {
-
-  const problems = JSON.parse(localStorage.getItem("problems")) || [];
+// ADD { problems = [] } as a prop
+function Weekly({ problems = [] }) {
 
   const today = new Date();
   const oneWeekAgo = new Date();

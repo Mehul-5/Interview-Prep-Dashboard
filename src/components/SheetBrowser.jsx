@@ -1,50 +1,96 @@
-// src/components/SheetBrowser.jsx
-import { useState } from "react";
-import sheets from "../data/sheets";
+import { useState, useEffect } from "react";
 import SheetCard from "./SheetCard";
 import ProblemTable from "./ProblemTable";
 import Navbar from "./Navbar";
 
-function SheetBrowser() {
-  // ── WHICH SHEET IS SELECTED ───────────────────────────────────────────────
-  const [selectedSheetId, setSelectedSheetId] = useState(sheets[0].id);
-  const activeSheet = sheets.find((s) => s.id === selectedSheetId);
+function SheetBrowser({ problems = [], onUpdate }) {
+  // ── API STATE ────────────────────────────────────────────────────────
+  const [sheetNames, setSheetNames] = useState([]);
+  const [selectedSheetName, setSelectedSheetName] = useState("");
+  const [activeProblems, setActiveProblems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // <--- ADD THIS LINE
 
-  // ── MODAL STATE ───────────────────────────────────────────────────────────
+  // ── FETCH SHEETS ON LOAD ─────────────────────────────────────────────
+  useEffect(() => {
+    fetch("http://127.0.0.1:8000/sheets")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch sheets");
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSheetNames(data);
+          if (data.length > 0) {
+            setSelectedSheetName(data[0]); 
+          } else {
+            setIsLoading(false);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("API Error:", err);
+        setIsLoading(false);
+      });
+  }, []);
+
+  // ── FETCH PROBLEMS WHEN SHEET CHANGES ────────────────────────────────
+  useEffect(() => {
+    if (!selectedSheetName) return;
+
+    setIsLoading(true);
+    fetch(`http://127.0.0.1:8000/problems/${encodeURIComponent(selectedSheetName)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Sheet empty or not found");
+        return res.json();
+      })
+      .then((data) => {
+        setActiveProblems(Array.isArray(data) ? data : []);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("API Error:", err);
+        setActiveProblems([]); 
+        setIsLoading(false);
+      });
+  }, [selectedSheetName]);
+
+  // ── MODAL & FORM STATE ────────────────────────────────────────────────────
   const [showModal, setShowModal] = useState(false);
-
-  // ── FORM STATE ────────────────────────────────────────────────────────────
   const [formName, setFormName] = useState("");
   const [formLevel, setFormLevel] = useState("Easy");
-  const [formDate, setFormDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [formDate, setFormDate] = useState(new Date().toISOString().slice(0, 10));
   const [formNote, setFormNote] = useState("");
   const [formTopic, setFormTopic] = useState("arrays");
   const [formSource, setFormSource] = useState("contest");
   const [formPlatform, setFormPlatform] = useState("Codeforces");
   const [formLink, setFormLink] = useState("");
-
-  // ── SUCCESS FLASH ─────────────────────────────────────────────────────────
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // ── LOCALSTORAGE HELPERS ──────────────────────────────────────────────────
-  const getSaved = () => JSON.parse(localStorage.getItem("problems")) || [];
+  // ── LOCALSTORAGE HELPERS (BULLETPROOFED) ──────────────────────────────────
+  const getSaved = () => {
+    try {
+      const data = JSON.parse(localStorage.getItem("problems"));
+      // Force it to be an array and strip out any null/corrupted objects
+      return Array.isArray(data) ? data.filter(p => p && typeof p === 'object') : [];
+    } catch (e) {
+      // If the data is corrupted, burn it down and start fresh
+      localStorage.removeItem("problems");
+      return [];
+    }
+  };
 
-  const getSolvedCount = (sheetId) =>
-    getSaved().filter((p) => p.fromSheet === sheetId).length;
+  const getSolvedCount = (sheetId) => problems.filter((p) => p.fromSheet === sheetId).length;
 
   // ── SUBMIT HANDLER ────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
-
     if (!formName || !formDate) {
       alert("Problem name and date are required.");
       return;
     }
 
     const saved = getSaved();
-
     const newProblem = {
       id: Date.now(),
       name: formName.trim(),
@@ -52,18 +98,13 @@ function SheetBrowser() {
       date: formDate,
       note: formNote.trim(),
       topic: formTopic,
-
-      // important change:
-      // manually logged problem ko kisi sheet se attach nahi karna
       fromSheet: null,
-
       source: formSource,
       platform: formPlatform,
       link: formLink.trim(),
     };
 
     localStorage.setItem("problems", JSON.stringify([...saved, newProblem]));
-
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -72,7 +113,6 @@ function SheetBrowser() {
     }, 1200);
   };
 
-  // ── RESET FORM ────────────────────────────────────────────────────────────
   const resetForm = () => {
     setFormName("");
     setFormLevel("Easy");
@@ -84,7 +124,7 @@ function SheetBrowser() {
     setFormLink("");
   };
 
-  // ── TOPIC OPTIONS ─────────────────────────────────────────────────────────
+  // ── FORM CONSTANTS ─────────────────────────────────────────────────────────
   const topics = [
     { value: "complexity", label: "Time & Space Complexity" },
     { value: "arrays", label: "Arrays" },
@@ -112,14 +152,8 @@ function SheetBrowser() {
   ];
 
   const platforms = [
-    "Codeforces",
-    "LeetCode",
-    "CodeChef",
-    "AtCoder",
-    "HackerRank",
-    "GeeksForGeeks",
-    "InterviewBit",
-    "Other",
+    "Codeforces", "LeetCode", "CodeChef", "AtCoder", "HackerRank", 
+    "GeeksForGeeks", "InterviewBit", "Other"
   ];
 
   const inputCls = `
@@ -131,20 +165,12 @@ function SheetBrowser() {
   `;
 
   const diffStyle = {
-    Easy: {
-      on: "bg-green-500/20 text-green-400 border-green-500/40",
-      off: "text-gray-500 border-white/10 hover:border-white/20",
-    },
-    Medium: {
-      on: "bg-amber-500/20 text-amber-400 border-amber-500/40",
-      off: "text-gray-500 border-white/10 hover:border-white/20",
-    },
-    Hard: {
-      on: "bg-red-500/20 text-red-400 border-red-500/40",
-      off: "text-gray-500 border-white/10 hover:border-white/20",
-    },
+    Easy: { on: "bg-green-500/20 text-green-400 border-green-500/40", off: "text-gray-500 border-white/10 hover:border-white/20" },
+    Medium: { on: "bg-amber-500/20 text-amber-400 border-amber-500/40", off: "text-gray-500 border-white/10 hover:border-white/20" },
+    Hard: { on: "bg-red-500/20 text-red-400 border-red-500/40", off: "text-gray-500 border-white/10 hover:border-white/20" },
   };
 
+  // ── RENDER UI ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col relative overflow-hidden">
       {/* ── BACKGROUND GLOW ───────────────────────────────────────────────── */}
@@ -192,19 +218,19 @@ function SheetBrowser() {
                 Current Focus
               </p>
               <h2 className="text-lg font-semibold text-white">
-                {activeSheet.name}
+                {selectedSheetName || "Loading..."}
               </h2>
               <p className="text-sm text-slate-400 mt-1">
-                {getSolvedCount(activeSheet.id)} of {activeSheet.totalProblems} solved
+                {getSolvedCount(selectedSheetName)} of {activeProblems.length} solved
               </p>
             </div>
 
             <span className="w-fit text-xs px-4 py-2 rounded-full border
                              bg-orange-500/10 text-orange-300 border-orange-400/20
                              shadow-[0_0_20px_rgba(251,146,60,0.08)]">
-              {Math.round(
-                (getSolvedCount(activeSheet.id) / activeSheet.totalProblems) * 100
-              )}
+              {activeProblems.length > 0 ? Math.round(
+                (getSolvedCount(selectedSheetName) / activeProblems.length) * 100
+              ) : 0}
               % complete
             </span>
           </div>
@@ -212,13 +238,13 @@ function SheetBrowser() {
 
         {/* ── SHEET CARDS ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          {sheets.map((sheet) => (
+          {sheetNames.map((name) => (
             <SheetCard
-              key={sheet.id}
-              sheet={sheet}
-              solvedCount={getSolvedCount(sheet.id)}
-              isSelected={selectedSheetId === sheet.id}
-              onClick={() => setSelectedSheetId(sheet.id)}
+              key={name}
+              sheet={{ name: name, totalProblems: "Live" }}
+              solvedCount={getSolvedCount(name)}
+              isSelected={selectedSheetName === name}
+              onClick={() => setSelectedSheetName(name)}
             />
           ))}
         </div>
@@ -227,7 +253,7 @@ function SheetBrowser() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
           <div>
             <h2 className="text-xl font-semibold text-white">
-              {activeSheet.name}
+              {selectedSheetName || "Loading..."}
             </h2>
             <p className="text-sm text-slate-400 mt-1">
               Explore problems and mark your progress sheet by sheet
@@ -236,20 +262,26 @@ function SheetBrowser() {
 
           <span className="w-fit text-xs px-3.5 py-1.5 rounded-full border
                            bg-white/[0.04] text-slate-300 border-white/10">
-            Total Problems: {activeSheet.totalProblems}
+            Total Problems: {activeProblems.length}
           </span>
         </div>
 
         {/* ── PROBLEM TABLE ─────────────────────────────────────────────────── */}
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04]
-                        backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]
-                        p-3 sm:p-4">
-          <ProblemTable
-            problems={activeSheet.problems.map((p) => ({
-              ...p,
-              fromSheet: activeSheet.id,
-            }))}
-          />
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] ...">
+          {isLoading ? (
+            <div className="text-center py-10 text-slate-400 animate-pulse">Loading database...</div>
+          ) : (
+            <ProblemTable
+              onUpdate={onUpdate} 
+              problems={activeProblems.map((p) => ({
+                id: p.id,
+                name: p.title,       
+                level: p.difficulty, 
+                link: p.url,         
+                fromSheet: selectedSheetName,
+              }))}
+            />
+          )}
         </div>
       </main>
 
@@ -295,7 +327,6 @@ function SheetBrowser() {
 
             {/* ── FORM ──────────────────────────────────────────────────── */}
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-              {/* manual log info strip */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl
                               bg-orange-500/10 border border-orange-500/20">
                 <span className="text-orange-400 text-xs">📌</span>
@@ -304,7 +335,6 @@ function SheetBrowser() {
                 </span>
               </div>
 
-              {/* ── PROBLEM NAME ────────────────────────────────────────── */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
                   Problem Name <span className="text-red-400">*</span>
@@ -318,7 +348,6 @@ function SheetBrowser() {
                 />
               </div>
 
-              {/* ── DIFFICULTY PILLS ────────────────────────────────────── */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
                   Difficulty
@@ -343,7 +372,6 @@ function SheetBrowser() {
                 </div>
               </div>
 
-              {/* ── SOURCE + PLATFORM ───────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
@@ -380,7 +408,6 @@ function SheetBrowser() {
                 </div>
               </div>
 
-              {/* ── DATE + TOPIC ────────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
@@ -416,7 +443,6 @@ function SheetBrowser() {
                 </div>
               </div>
 
-              {/* ── PROBLEM LINK ────────────────────────────────────────── */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
                   Problem Link
@@ -433,7 +459,6 @@ function SheetBrowser() {
                 />
               </div>
 
-              {/* ── NOTE ───────────────────────────────────────────────── */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
                   Note
@@ -450,7 +475,6 @@ function SheetBrowser() {
                 />
               </div>
 
-              {/* ── SUBMIT ──────────────────────────────────────────────── */}
               <button
                 type="submit"
                 className="w-full py-3 rounded-2xl text-sm font-semibold
