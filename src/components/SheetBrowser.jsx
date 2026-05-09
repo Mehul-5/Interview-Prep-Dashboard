@@ -23,17 +23,27 @@ function SheetBrowser({ problems = [], onUpdate }) {
       })
       .then((data) => {
         if (Array.isArray(data)) {
-          setSheets(data);
+          // Define the color palette to be used for the progress bars
+          const colors = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6"];
+          
+          // Map the colors to the fetched sheet data based on their index
+          const sheetsWithColors = data.map((s, i) => ({ 
+            ...s, 
+            color: colors[i % colors.length] 
+          }));
+
+          setSheets(sheetsWithColors);
+          
           // Auto-select the first sheet only on initial load
-          if (data.length > 0 && !selectedSheetName) {
-            setSelectedSheetName(data[0].name);
+          if (sheetsWithColors.length > 0 && !selectedSheetName) {
+            setSelectedSheetName(sheetsWithColors[0].name);
           }
         }
       })
       .catch((err) => console.error("API Error:", err));
   }, [token, problems]); 
 
-  // 2. Fetch problems for the selected sheet (includes unticked custom problems)
+  // 2. Fetch problems for the selected sheet
   useEffect(() => {
     if (!selectedSheetName || !token) return;
 
@@ -60,6 +70,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col relative overflow-hidden">
+      {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-[28rem] h-[28rem] bg-indigo-500/10 blur-3xl rounded-full" />
         <div className="absolute bottom-0 right-0 w-[24rem] h-[24rem] bg-cyan-400/10 blur-3xl rounded-full" />
@@ -77,7 +88,8 @@ function SheetBrowser({ problems = [], onUpdate }) {
           </div>
         </div>
 
-        <div className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] p-5">
+        {/* Current Focus Banner */}
+        <div className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8_30px_rgba(0,0,0,0.25)] p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">Current Focus</p>
@@ -90,11 +102,13 @@ function SheetBrowser({ problems = [], onUpdate }) {
           </div>
         </div>
 
+        {/* Sheet Selection Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
           {sheets.map((sheet) => (
             <SheetCard
               key={sheet.name}
-              sheet={{ name: sheet.name, totalProblems: sheet.totalProblems }} // Passes real database number
+              // FIX: Pass the entire sheet object so that SheetCard receives the 'color' property
+              sheet={sheet} 
               solvedCount={getSolvedCount(sheet.name)}
               isSelected={selectedSheetName === sheet.name}
               onClick={() => setSelectedSheetName(sheet.name)}
@@ -112,6 +126,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
           </span>
         </div>
 
+        {/* Problem Table container */}
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] overflow-hidden">
           {isLoading ? (
             <div className="text-center py-10 text-slate-400 animate-pulse">Loading database...</div>
