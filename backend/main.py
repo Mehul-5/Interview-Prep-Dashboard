@@ -33,7 +33,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173, https://dsa-tracker-sage.vercel.app, dsa-tracker-git-main-mehul-s-projects09.vercel.app"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173, https://dsa-tracker-sage.vercel.app, https://dsa-tracker-git-main-mehul-s-projects09.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
