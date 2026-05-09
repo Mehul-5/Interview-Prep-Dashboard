@@ -3,7 +3,7 @@ import Navbar from "./Navbar";
 import { useNavigate } from "react-router-dom";
 import AddProblemForm from "./AddProblemForm"; 
 import AIAssistant from "./AIAssistant"; 
-import { AuthContext } from "../Context/AuthContext";
+import { AuthContext } from "../provider/AuthContext";
 
 function Dashboard({ problems = [], onUpdate }) {
   const navigate = useNavigate();

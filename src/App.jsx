@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthContext } from "./Context/AuthContext.jsx";
+import { AuthContext } from "./provider/AuthContext.jsx";
 import Login from "./components/Login";
 import SheetBrowser from "./components/SheetBrowser";
 import Dashboard from "./components/Dashboard";

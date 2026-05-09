@@ -1,5 +1,5 @@
 import { useState, useContext } from "react";
-import { AuthContext } from "../Context/AuthContext";
+import { AuthContext } from "../provider/AuthContext";
 
 function AIAssistant({ onUpdate }) {
   const { token } = useContext(AuthContext);

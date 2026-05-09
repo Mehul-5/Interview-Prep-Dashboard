@@ -1,6 +1,6 @@
 import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../Context/AuthContext";
+import { AuthContext } from "../provider/AuthContext";
 
 function Login() {
   const [isLoginMode, setIsLoginMode] = useState(true);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from "react";
-import { AuthContext } from "../Context/AuthContext";
+import { AuthContext } from "../provider/AuthContext";
 import SheetCard from "./SheetCard";
 import ProblemTable from "./ProblemTable";
 import Navbar from "./Navbar";
