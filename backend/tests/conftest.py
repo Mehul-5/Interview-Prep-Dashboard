@@ -42,11 +42,15 @@ def client(db_session):
     return TestClient(app)
 
 @pytest.fixture
-def auth_headers(client):
-    """Returns headers for a pre-authenticated test user."""
-    email = "tester@example.com"
-    password = "password123"
-    client.post("/signup", json={"email": email, "username": "tester", "password": password})
-    login_res = client.post("/login", data={"username": email, "password": password})
-    token = login_res.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+def db_session():
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
+    
+    yield session
+    
+    session.close()
+    # Only rollback if the transaction is still active
+    if transaction.is_active:
+        transaction.rollback()
+    connection.close()

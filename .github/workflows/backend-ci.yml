@@ -10,7 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    # 1. Spin up a temporary PostgreSQL database for the tests
     services:
       postgres:
         image: postgres:15
@@ -32,7 +31,8 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: "3.12" # Updated to match your local version
+        cache: 'pip' # This enables automatic dependency caching
         
     - name: Install dependencies
       run: |
@@ -41,9 +41,9 @@ jobs:
         
     - name: Run Tests
       env:
-        # 2. Inject the URL to the temporary GitHub Postgres database
         DATABASE_URL: "postgresql://testuser:testpassword@localhost:5432/testdb"
-        SECRET_KEY: "test_secret_key"
+        # CHANGE: Use a key at least 32 characters long to fix the security warning
+        SECRET_KEY: "super_secret_test_key_that_is_long_enough_for_jwt"
         GEMINI_API_KEY: "dummy_key"
       run: |
         cd backend
