@@ -64,7 +64,7 @@ function Login() {
 
       if (isLoginMode) {
         login(data.access_token);
-        navigate("/sheets");
+        navigate("/");
       } else {
         setIsLoginMode(true);
         setError("Account created successfully! Please log in.");
