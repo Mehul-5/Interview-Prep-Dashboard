@@ -2,8 +2,8 @@ import { useState, useEffect, useContext } from "react";
 import Navbar from "./Navbar";
 import { useNavigate } from "react-router-dom";
 import AddProblemForm from "./AddProblemForm"; 
+import AIAssistant from "./AIAssistant"; 
 import { AuthContext } from "../context/AuthContext";
-
 
 function Dashboard({ problems = [], onUpdate }) {
   const navigate = useNavigate();
@@ -135,8 +135,9 @@ function Dashboard({ problems = [], onUpdate }) {
           })}
         </div>
 
-        <div className="mb-10 max-w-xl">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
           <AddProblemForm onUpdate={onUpdate} />
+          <AIAssistant onUpdate={onUpdate} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

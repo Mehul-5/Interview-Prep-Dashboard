@@ -3,11 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime, timezone
-from typing import List, Any
+from typing import List
 from pydantic import BaseModel
 import jwt
+import os
+import json
+import google.generativeai as genai
+
 import models, schemas, crud, auth
 from db import engine, get_db
+from dotenv import load_dotenv
+load_dotenv()
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -52,62 +58,37 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 # --- SHEETS & PROBLEMS ---
 @app.get("/sheets")
 def get_available_sheets(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Dynamically returns ALL sheets with their exact total problem counts"""
     sheet_names = crud.get_all_sheet_names(db)
     result = []
-    
     for sn in sheet_names:
         name = sn[0] if isinstance(sn, tuple) else sn
         count = db.query(models.Problem).filter(models.Problem.sheet_name == name).count()
         result.append({"id": name, "name": name, "totalProblems": count})
         
     custom_count = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).count()
-    result.append({
-        "id": "Custom Problems",
-        "name": "Custom Problems",
-        "totalProblems": custom_count if custom_count > 0 else 1 # Fallback to 1 to prevent NaN%
-    })
-    
+    result.append({"id": "Custom Problems", "name": "Custom Problems", "totalProblems": custom_count if custom_count > 0 else 1})
     return result
 
 @app.get("/problems/{sheet_name}")
 def get_problems(sheet_name: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Fetch ALL custom problems regardless of solved status so they stay in the table
     if sheet_name == "Custom Problems":
         cps = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
-        return [{
-            "id": f"custom-{cp.id}",
-            "title": cp.title,
-            "difficulty": cp.difficulty,
-            "url": cp.url,
-            "topic": cp.topic,
-            "sheet_name": "Custom Problems"
-        } for cp in cps]
+        return [{"id": f"custom-{cp.id}", "title": cp.title, "difficulty": cp.difficulty, "url": cp.url, "topic": cp.topic, "sheet_name": "Custom Problems"} for cp in cps]
         
     problems = crud.get_problems_by_sheet(db, sheet_name=sheet_name)
     if not problems:
         raise HTTPException(status_code=404, detail="Sheet not found")
-        
-    return [{
-        "id": str(p.id),
-        "title": p.title,
-        "difficulty": p.difficulty,
-        "url": p.url,
-        "topic": getattr(p, 'topic', 'General'),
-        "sheet_name": p.sheet_name
-    } for p in problems]
+    return [{"id": str(p.id), "title": p.title, "difficulty": p.difficulty, "url": p.url, "topic": getattr(p, 'topic', 'General'), "sheet_name": p.sheet_name} for p in problems]
 
 # --- PROGRESS TOGGLES ---
 @app.get("/solutions", response_model=List[str])
 def get_my_solutions(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     solutions = crud.get_user_solutions(db, user_id=user_id)
     solved_ids = [str(sol.problem_id) for sol in solutions]
-    
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
         if cp.source == "Custom": 
             solved_ids.append(f"custom-{cp.id}")
-            
     return solved_ids
 
 @app.post("/solutions/{problem_id}")
@@ -173,7 +154,6 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
                 "fromSheet": prob.sheet_name
             })
             
-    # ONLY map active/checked custom problems to the Dashboard/Streak graphs
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id, models.CustomProblem.source == "Custom").all()
     for cp in custom_probs:
         cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
@@ -184,3 +164,58 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
             "fromSheet": "Custom Problems" 
         })
     return result
+
+# --- AI INTERVIEW ASSISTANT ---
+import os
+import json
+import re
+from dotenv import load_dotenv
+import google.generativeai as genai
+
+# FORCE Python to read the .env file so the API key is never missed
+load_dotenv() 
+
+class PrepRequest(BaseModel):
+    company: str
+    role: str
+
+@app.post("/generate-prep")
+def generate_prep(req: PrepRequest, user_id: str = Depends(get_current_user)):
+    """Pings the LLM to generate a targeted prep list."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        print("CRITICAL: GEMINI_API_KEY not found in environment.")
+        raise HTTPException(status_code=500, detail="API Key missing. Add GEMINI_API_KEY to your .env file.")
+        
+    genai.configure(api_key=api_key)
+    
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        
+        prompt = f"""
+        You are a strict technical interviewer. 
+        Generate exactly 5 highly-tested Data Structures & Algorithms problems for a {req.role} interview at {req.company}.
+        Respond ONLY with a raw JSON array of objects. Do NOT use markdown code blocks like ```json.
+        Each object MUST have exactly these keys:
+        - "title": (string) Problem name
+        - "difficulty": (string) "Easy", "Medium", or "Hard"
+        - "topic": (string) Core DSA topic (e.g., "Arrays", "Graphs")
+        - "url": (string) A realistic LeetCode URL for the problem
+        """
+        
+        response = model.generate_content(prompt)
+        raw_text = response.text.strip()
+        
+        # Strip markdown safely
+        if raw_text.startswith("```json"): 
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"): 
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"): 
+            raw_text = raw_text[:-3]
+            
+        return json.loads(raw_text.strip())
+        
+    except Exception as e:
+        print(f"AI Generation Error: {e}")
+        raise HTTPException(status_code=500, detail="AI generation failed. Please try again.")
