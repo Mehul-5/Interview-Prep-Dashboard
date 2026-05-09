@@ -14,7 +14,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
   // 1. Fetch ALL sheets and their true totals dynamically
   useEffect(() => {
     if (!token) return;
-    fetch("http://127.0.0.1:8000/sheets", {
+    fetch("https://interview-prep-dashboard.onrender.com/sheets", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => {
@@ -38,7 +38,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
     if (!selectedSheetName || !token) return;
 
     setIsLoading(true);
-    fetch(`http://127.0.0.1:8000/problems/${encodeURIComponent(selectedSheetName)}`, {
+    fetch(`https://interview-prep-dashboard.onrender.com/problems/${encodeURIComponent(selectedSheetName)}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => {

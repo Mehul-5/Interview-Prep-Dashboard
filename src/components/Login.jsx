@@ -27,7 +27,7 @@ function Login() {
         formData.append("username", email); 
         formData.append("password", password);
 
-        response = await fetch("http://127.0.0.1:8000/login", {
+        response = await fetch("https://interview-prep-dashboard.onrender.com/login", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: formData,
@@ -37,7 +37,7 @@ function Login() {
         // We split the email at the '@' and chop it to 15 characters to satisfy the strict DB limit
         const safeUsername = email.split("@")[0].substring(0, 15);
         
-        response = await fetch("http://127.0.0.1:8000/signup", {
+        response = await fetch("https://interview-prep-dashboard.onrender.com/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email, username: safeUsername, password: password }),

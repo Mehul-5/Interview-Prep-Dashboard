@@ -9,7 +9,7 @@ function ProblemTable({ problems, onUpdate }) {
 
   useEffect(() => {
     if (!token) return;
-    fetch("http://127.0.0.1:8000/solutions", {
+    fetch("https://interview-prep-dashboard.onrender.com/solutions", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -43,13 +43,13 @@ function ProblemTable({ problems, onUpdate }) {
       if (isCustom) {
         // Ping our new custom revision endpoint
         const cpId = strId.split("-")[1];
-        res = await fetch(`http://127.0.0.1:8000/custom-problems/${cpId}/toggle`, {
+        res = await fetch(`https://interview-prep-dashboard.onrender.com/custom-problems/${cpId}/toggle`, {
           method: "PUT",
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
         // Ping standard endpoint
-        res = await fetch(`http://127.0.0.1:8000/solutions/${strId}`, {
+        res = await fetch(`https://interview-prep-dashboard.onrender.com/solutions/${strId}`, {
           method: isSolved ? "DELETE" : "POST",
           headers: { Authorization: `Bearer ${token}` },
         });

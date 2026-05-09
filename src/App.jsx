@@ -16,7 +16,7 @@ function App() {
   const fetchProgress = () => {
     if (!isAuthenticated || !token) return;
     
-    fetch("http://127.0.0.1:8000/my-progress", {
+    fetch("https://interview-prep-dashboard.onrender.com/my-progress", {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(async (res) => {

@@ -14,7 +14,7 @@ function AIAssistant({ onUpdate }) {
     setLoading(true);
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/generate-prep", {
+      const res = await fetch("https://interview-prep-dashboard.onrender.com/generate-prep", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ company, role })
@@ -32,7 +32,7 @@ function AIAssistant({ onUpdate }) {
 
   const handleAddToTracker = async (prob) => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/custom-problems", {
+      const res = await fetch("https://interview-prep-dashboard.onrender.com/custom-problems", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({

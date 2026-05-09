@@ -13,7 +13,7 @@ function Dashboard({ problems = [], onUpdate }) {
   // Fetch ALL sheets dynamically and assign them colors
   useEffect(() => {
     if (!token) return;
-    fetch("http://127.0.0.1:8000/sheets", {
+    fetch("https://interview-prep-dashboard.onrender.com/sheets", {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
