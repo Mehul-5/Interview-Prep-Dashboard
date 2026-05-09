@@ -11,3 +11,5 @@ google-generativeai
 alembic
 email-validator
 bcrypt==3.2.2
+pytest
+httpx
