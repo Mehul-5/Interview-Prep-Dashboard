@@ -76,10 +76,11 @@ function Dashboard({ problems = [], onUpdate }) {
   }
 
   const statCards = [
-    { title: "Total Problems", value: problems.length, icon: "📘", accent: "blue", route: "/problems" },
-    { title: "Last 7 Days", value: weeklyproblems.length, icon: "📅", accent: "orange", route: "/weekly" },
-    { title: "Current Streak", value: `${streak} days`, icon: streak > 0 ? "🔥" : "💤", accent: "amber", route: "/streak" },
-    { title: "Hard Problems", value: hardproblems.length, icon: "💪", accent: "red", route: "/hard" },
+    // Note: Ensure you have a Route set up for "/problems" in App.jsx (e.g. mapping to Problemspage.jsx)
+    { title: "Total Problems", value: problems.length, icon: "🎯", accent: "blue", route: "/problems" },
+    { title: "Last 7 Days", value: weeklyproblems.length, icon: "🔥", accent: "orange", route: "/weekly" },
+    { title: "Current Streak", value: `${streak} days`, icon: streak > 0 ? "🏃" : "🚶", accent: "amber", route: "/streak" },
+    { title: "Hard Problems", value: hardproblems.length, icon: "🌋", accent: "red", route: "/hard" },
   ];
 
   // Map the fetched dynamic sheets to the progress calculations
@@ -119,10 +120,14 @@ function Dashboard({ problems = [], onUpdate }) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-          {statCards.map(({ title, value, icon, accent }) => {
+          {statCards.map(({ title, value, icon, accent, route }) => {
             const cls = accentClasses[accent];
             return (
-              <div key={title} className={`rounded-2xl p-5 flex items-center justify-between border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition-all duration-300`}>
+              <div 
+                key={title} 
+                onClick={() => navigate(route)}
+                className={`cursor-pointer hover:-translate-y-1 hover:bg-white/[0.08] hover:shadow-[0_8px_30px_rgba(255,255,255,0.05)] rounded-2xl p-5 flex items-center justify-between border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition-all duration-300`}
+              >
                 <div>
                   <p className="text-[11px] text-slate-400 uppercase tracking-[0.18em] mb-2">{title}</p>
                   <p className={`text-4xl font-bold ${cls.text}`}>{value}</p>
@@ -143,13 +148,17 @@ function Dashboard({ problems = [], onUpdate }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-3xl p-6 border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
             <h2 className="text-base font-semibold text-white mb-1">Sheet progress</h2>
-            <div className="flex flex-col gap-5 mt-6">
+            <div className="flex flex-col gap-2 mt-4">
               {sheetProgress.map((sheet) => {
                 const pct = Math.round((sheet.solved / sheet.totalProblems) * 100) || 0;
                 return (
-                  <div key={sheet.name}>
+                  <div 
+                    key={sheet.name}
+                    onClick={() => navigate("/sheets")}
+                    className="cursor-pointer group hover:bg-white/[0.04] p-3 -mx-3 rounded-2xl transition-colors duration-200"
+                  >
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-slate-200">{sheet.name}</span>
+                      <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{sheet.name}</span>
                       <span className="text-xs text-slate-400">{sheet.solved} / {sheet.totalProblems}</span>
                     </div>
                     <div className="w-full h-2.5 bg-slate-800/80 rounded-full overflow-hidden">
@@ -184,7 +193,7 @@ function Dashboard({ problems = [], onUpdate }) {
                             </a>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400 capitalize mt-1">{problem.topic} · {problem.date}</p>
+                        <p className="text-xs text-slate-400 capitalize mt-1">{problem.topic} • {problem.date}</p>
                       </div>
                       <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${problem.level === "Easy" ? "bg-emerald-500/10 text-emerald-300 border-emerald-400/20" : problem.level === "Hard" ? "bg-rose-500/10 text-rose-300 border-rose-400/20" : "bg-amber-500/10 text-amber-300 border-amber-400/20"}`}>
                         {problem.level}
