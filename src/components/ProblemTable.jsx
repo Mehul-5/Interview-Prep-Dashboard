@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../Context/AuthContext";
 
 function ProblemTable({ problems, onUpdate }) {
   const { token } = useContext(AuthContext);
