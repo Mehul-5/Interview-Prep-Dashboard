@@ -9,6 +9,23 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    
+    # 1. Spin up a temporary PostgreSQL database for the tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
     
@@ -24,7 +41,8 @@ jobs:
         
     - name: Run Tests
       env:
-        # Inject dummy keys so the test environment doesn't crash
+        # 2. Inject the URL to the temporary GitHub Postgres database
+        DATABASE_URL: "postgresql://testuser:testpassword@localhost:5432/testdb"
         SECRET_KEY: "test_secret_key"
         GEMINI_API_KEY: "dummy_key"
       run: |
