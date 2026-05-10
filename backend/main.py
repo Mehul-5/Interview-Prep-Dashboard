@@ -44,7 +44,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 # --- CORS POLICY (HARDENED) ---
-# This regex allows Localhost, Vercel, and Chrome Extension origins simultaneously.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -107,7 +106,6 @@ def get_my_solutions(user_id: str = Depends(get_current_user), db: Session = Dep
     solved_ids = [str(sol.problem_id) for sol in solutions]
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
-        # We ensure custom problems are identified by their 'custom-' prefix for the frontend
         if cp.source == "Custom": 
             solved_ids.append(f"custom-{cp.id}")
     return solved_ids
@@ -169,7 +167,6 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
                 "fromSheet": prob.sheet_name
             })
             
-    # UNFILTERED: Returns all custom problems for the account (Fixed the display bug)
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
         cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
@@ -227,7 +224,8 @@ def generate_prep(req: PrepRequest, user_id: str = Depends(get_current_user)):
         print(f"AI Generation Error: {e}")
         raise HTTPException(status_code=500, detail="AI generation failed. Please try again.")
     
-# --- EXTENSION BULK SYNC ROUTE ---
+
+# --- EXTENSION BULK SYNC & TAGGING ENGINE ---
 class BulkProblem(BaseModel):
     title: Optional[str] = None
     titleSlug: Optional[str] = ""
@@ -240,8 +238,13 @@ def normalize_title_safe(title: str) -> str:
     if not title: return ""
     return re.sub(r'[^a-z0-9]', '', title.lower())
 
-# THE CLASSIFICATION ENGINE INTEGRATED INTO PIPELINE
-def auto_tag_title(title: str) -> str:
+# THE AUTHORITATIVE TAGGING ENGINE
+def get_best_topic(title: str, slug: str) -> str:
+    # 1. Primary: O(1) Match from JSON database loaded at boot
+    if slug and slug in LC_TAGS_MAP:
+        return LC_TAGS_MAP[slug]
+        
+    # 2. Secondary Fallback: Keyword Heuristic
     if not title: return "General"
     title_lower = title.lower()
     keyword_map = {
@@ -272,6 +275,7 @@ def bulk_sync_leetcode(
         if not current_user:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # Deduplicate to prevent redundant processing
         unique_subs = {}
         for sub in request.submissions:
             if sub.title: 
@@ -279,6 +283,7 @@ def bulk_sync_leetcode(
             
         recent_submissions = list(unique_subs.values())
 
+        # Pre-cache maps to avoid N+1 queries
         all_problems = db.query(models.Problem).all()
         problem_map = {normalize_title_safe(p.title): p for p in all_problems}
         
@@ -309,12 +314,13 @@ def bulk_sync_leetcode(
                     imported_count += 1
             else:
                 if normalized_title not in custom_map:
+                    # FIX: Successfully deploys the JSON tagging engine here
                     new_cp = models.CustomProblem(
                         user_id=current_user.id, 
                         title=sub.title, 
-                        difficulty="Medium", # Setting a default Medium difficulty
+                        difficulty="Medium", 
                         url=f"https://leetcode.com/problems/{sub.titleSlug}/" if sub.titleSlug else "",
-                        topic=auto_tag_title(sub.title), # AI ENGINE DEPLOYED HERE
+                        topic=get_best_topic(sub.title, sub.titleSlug), 
                         source="Custom", 
                         notes="Imported via Extension"
                     )
