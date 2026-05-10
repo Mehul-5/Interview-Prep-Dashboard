@@ -7,8 +7,10 @@ import Dashboard from "./components/Dashboard";
 import Streak from "./components/Streak";
 import Weekly from "./components/Weekly";
 
+// THE MISSING IMPORT YOU FORGOT
+import Problemspage from "./components/Problemspage";
+
 function App() {
-  // We extract 'logout' so we can use it if the token dies
   const { isAuthenticated, token, logout } = useContext(AuthContext);
   const [problems, setProblems] = useState([]);
 
@@ -20,7 +22,6 @@ function App() {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(async (res) => {
-      // SECURITY FIX: If token is expired (401), wipe it and kick user to login
       if (!res.ok) {
         if (res.status === 401) logout(); 
         throw new Error("Data bridge failed or unauthorized");
@@ -28,7 +29,6 @@ function App() {
       return res.json();
     })
     .then(data => {
-      // PREVENT CRASH: Only save if it's an actual array
       if (Array.isArray(data)) setProblems(data);
     })
     .catch(err => console.error(err));
@@ -38,16 +38,16 @@ function App() {
     fetchProgress();
   }, [isAuthenticated, token]);
 
-  // Don't forget to add this import at the top:
-// import Problemspage from "./components/Problemspage";
-
   return (
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
       <Route path="/streak" element={isAuthenticated ? <Streak problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/weekly" element={isAuthenticated ? <Weekly problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/sheets" element={isAuthenticated ? <SheetBrowser problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
+      
+      {/* The route that caused the crash because the import was missing */}
       <Route path="/problems" element={isAuthenticated ? <Problemspage problems={problems} /> : <Navigate to="/login" />} />
+      
       <Route path="/" element={isAuthenticated ? <Dashboard problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
     </Routes>
   );
