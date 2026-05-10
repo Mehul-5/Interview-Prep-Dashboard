@@ -83,7 +83,7 @@ function Login() {
       <div className="w-full max-w-md bg-white/[0.04] border border-white/10 backdrop-blur-xl rounded-3xl p-8 relative z-10">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white">
-            {isLoginMode ? "System Access" : "Create Account"}
+            {isLoginMode ? "Log In" : "Create Account"}
           </h1>
         </div>
 
