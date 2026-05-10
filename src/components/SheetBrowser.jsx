@@ -89,7 +89,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
         </div>
 
         {/* Current Focus Banner */}
-        <div className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8_30px_rgba(0,0,0,0.25)] p-5">
+        <div className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">Current Focus</p>
@@ -107,7 +107,6 @@ function SheetBrowser({ problems = [], onUpdate }) {
           {sheets.map((sheet) => (
             <SheetCard
               key={sheet.name}
-              // FIX: Pass the entire sheet object so that SheetCard receives the 'color' property
               sheet={sheet} 
               solvedCount={getSolvedCount(sheet.name)}
               isSelected={selectedSheetName === sheet.name}
@@ -138,6 +137,7 @@ function SheetBrowser({ problems = [], onUpdate }) {
                 name: p.title,       
                 level: p.difficulty, 
                 link: p.url,         
+                topic: p.topic,      // THE CRITICAL FIX ADDED HERE
                 fromSheet: selectedSheetName,
               }))}
             />
