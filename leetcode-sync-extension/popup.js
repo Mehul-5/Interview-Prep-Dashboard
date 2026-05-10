@@ -7,72 +7,94 @@ document.addEventListener('DOMContentLoaded', () => {
       const token = result.dsaToken;
       
       if (!token) {
-        statusDiv.innerText = "Error: Not connected. Log out and log back into your Dashboard to trigger the bridge.";
+        statusDiv.innerText = "Error: Not connected. Log out and log back into your Dashboard.";
         statusDiv.style.color = "#f43f5e";
         return;
       }
 
       syncBtn.disabled = true;
-      statusDiv.innerText = "1/2: Authenticating with LeetCode...";
       statusDiv.style.color = "#94a3b8";
 
       try {
-        // --- 1. EXTRACT FROM LEETCODE ---
-        const lcResponse = await fetch('https://leetcode.com/api/submissions/?offset=0&limit=500', {
-          method: 'GET',
-          credentials: 'include' // CRITICAL FIX: Forces Chrome to attach your active LeetCode session cookies
-        });
+        let offset = 0;
+        let allAccepted = [];
+        let hasMore = true;
 
-        if (lcResponse.status === 401 || lcResponse.status === 403) {
-          throw new Error("LeetCode rejected the request. Open a new tab, go to LeetCode.com, and ensure you are fully logged in.");
+        // --- THE DEEP CRAWLER ENGINE ---
+        while (hasMore) {
+          statusDiv.innerText = `Scanning deep history... (Found ${allAccepted.length} accepted so far)`;
+          
+          const lcResponse = await fetch(`https://leetcode.com/api/submissions/?offset=${offset}&limit=100`, {
+            method: 'GET',
+            credentials: 'include'
+          });
+
+          if (lcResponse.status === 401 || lcResponse.status === 403) {
+            throw new Error("LeetCode rejected the request. Open a LeetCode tab and log in.");
+          }
+
+          const lcData = await lcResponse.json();
+          
+          if (!lcData.submissions_dump || lcData.submissions_dump.length === 0) {
+            hasMore = false;
+            break;
+          }
+
+          const acceptedSubs = lcData.submissions_dump
+            .filter(sub => sub.status_display === "Accepted")
+            .map(sub => ({
+              title: sub.title,
+              titleSlug: sub.title_slug,
+              timestamp: sub.timestamp
+            }));
+
+          allAccepted.push(...acceptedSubs);
+
+          // If LeetCode says there is more data, increment the offset and keep digging
+          if (lcData.has_next) {
+            offset += 100;
+            // Polite delay to prevent Cloudflare from banning your IP
+            await new Promise(resolve => setTimeout(resolve, 500)); 
+          } else {
+            hasMore = false;
+          }
         }
 
-        const lcData = await lcResponse.json();
-        
-        if (!lcData.submissions_dump || lcData.submissions_dump.length === 0) {
+        if (allAccepted.length === 0) {
           throw new Error("No accepted submissions found on this LeetCode profile.");
         }
 
-        const acceptedSubs = lcData.submissions_dump
-          .filter(sub => sub.status_display === "Accepted")
-          .map(sub => ({
-            title: sub.title,
-            titleSlug: sub.title_slug,
-            timestamp: sub.timestamp
-          }));
+        statusDiv.innerText = `Total extracted: ${allAccepted.length} problems. Pushing to Render...`;
 
-        statusDiv.innerText = `2/2: Found ${acceptedSubs.length} problems. Pushing to Render...`;
-
-        // --- 2. PUSH TO RENDER ---
+        // --- PUSH TO DATABASE ---
         const backendResponse = await fetch('https://interview-prep-dashboard.onrender.com/bulk-sync-leetcode', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ submissions: acceptedSubs })
+          body: JSON.stringify({ submissions: allAccepted })
         });
 
         if (!backendResponse.ok) {
-          // CRITICAL FIX: Explicitly call out a 404 Not Found
-          if (backendResponse.status === 404) {
-              throw new Error("404 Not Found: Your Render server is still running the old code. The deployment has not finished yet.");
-          }
-
           let serverError = "Unknown server error";
           try {
              const errorData = await backendResponse.json();
-             serverError = typeof errorData.detail === 'string' 
-                ? errorData.detail 
-                : JSON.stringify(errorData.detail || errorData);
+             serverError = errorData.detail || JSON.stringify(errorData);
           } catch(e) {
-             serverError = `HTTP ${backendResponse.status} - ${backendResponse.statusText}`;
+             serverError = `HTTP ${backendResponse.status}`;
           }
-          throw new Error(`Render Server Error: ${serverError}`);
+          throw new Error(`Render Error: ${serverError}`);
         }
 
         const result = await backendResponse.json();
-        statusDiv.innerText = `Success! Imported ${result.imported_count} new problems.`;
+        
+        // --- IDEMPOTENCY AWARENESS UI ---
+        if (result.imported_count === 0) {
+            statusDiv.innerText = `Sync Complete! All ${allAccepted.length} unique problems are already safely in your database.`;
+        } else {
+            statusDiv.innerText = `Success! Imported ${result.imported_count} new problems.`;
+        }
         statusDiv.style.color = "#10b981";
 
       } catch (err) {

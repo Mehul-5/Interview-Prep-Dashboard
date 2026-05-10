@@ -42,7 +42,7 @@ app.add_middleware(
         "https://dsa-tracker-sage.vercel.app", 
         "https://dsa-tracker-git-main-mehul-s-projects09.vercel.app"
     ],
-    allow_origin_regex=r"chrome-extension://.*",  
+    allow_origin_regex=r"(http://localhost:5173|http://127\.0\.0\.1:5173|https://.*\.vercel\.app|chrome-extension://.*)",  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
