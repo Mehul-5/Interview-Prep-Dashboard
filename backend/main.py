@@ -9,7 +9,7 @@ import jwt
 import os
 import json
 import google.generativeai as genai
-
+from leetcode_sync import sync_user_leetcode_data
 import models, schemas, crud, auth
 from db import engine, get_db
 from dotenv import load_dotenv
@@ -111,19 +111,23 @@ def unmark_problem_solved(problem_id: int, user_id: str = Depends(get_current_us
         db.commit()
     return {"message": "Problem unmarked"}
 
-from leetcode_sync import sync_user_leetcode_data
-
 @app.post("/sync-leetcode")
 def sync_leetcode(
     request: schemas.SyncRequest, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(auth.get_current_user)
+    user_id: str = Depends(get_current_user)  # FIX 1: Removed 'auth.' prefix
 ):
     try:
+        # FIX 2: Fetch the actual User object from the database using the ID
+        current_user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
         count = sync_user_leetcode_data(db, current_user, request.leetcode_username)
         return {"imported_count": count, "message": "Sync successful"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Sync error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync with LeetCode")
 
 # --- CUSTOM PROBLEMS ---
 class CustomProblemInput(BaseModel):
