@@ -38,12 +38,16 @@ function App() {
     fetchProgress();
   }, [isAuthenticated, token]);
 
+  // Don't forget to add this import at the top:
+// import Problemspage from "./components/Problemspage";
+
   return (
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
       <Route path="/streak" element={isAuthenticated ? <Streak problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/weekly" element={isAuthenticated ? <Weekly problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/sheets" element={isAuthenticated ? <SheetBrowser problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
+      <Route path="/problems" element={isAuthenticated ? <Problemspage problems={problems} /> : <Navigate to="/login" />} />
       <Route path="/" element={isAuthenticated ? <Dashboard problems={problems} onUpdate={fetchProgress} /> : <Navigate to="/login" />} />
     </Routes>
   );
