@@ -177,7 +177,6 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
         })
     return result
 
-# --- AI INTERVIEW ASSISTANT ROUTE ---
 class PrepRequest(BaseModel):
     company: str
     role: str
@@ -223,3 +222,88 @@ def generate_prep(req: PrepRequest, user_id: str = Depends(get_current_user)):
         print(f"AI Generation Error: {e}")
         raise HTTPException(status_code=500, detail="AI generation failed. Please try again.")
     
+# --- EXTENSION BULK SYNC ROUTE ---
+class BulkProblem(BaseModel):
+    title: Optional[str] = None
+    titleSlug: Optional[str] = ""
+    timestamp: Optional[int] = 0
+
+class BulkSyncRequest(BaseModel):
+    submissions: List[BulkProblem]
+
+def normalize_title_safe(title: str) -> str:
+    if not title: return ""
+    return re.sub(r'[^a-z0-9]', '', title.lower())
+
+@app.post("/bulk-sync-leetcode")
+def bulk_sync_leetcode(
+    request: BulkSyncRequest, 
+    db: Session = Depends(get_db), 
+    user_id: str = Depends(get_current_user)
+):
+    try:
+        current_user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        unique_subs = {}
+        for sub in request.submissions:
+            if sub.title: 
+                unique_subs[sub.title] = sub
+            
+        recent_submissions = list(unique_subs.values())
+
+        all_problems = db.query(models.Problem).all()
+        problem_map = {normalize_title_safe(p.title): p for p in all_problems}
+        
+        existing_custom = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == current_user.id).all()
+        custom_map = {normalize_title_safe(cp.title): cp for cp in existing_custom}
+        
+        existing_solutions = db.query(models.UserSolution).filter(models.UserSolution.user_id == current_user.id).all()
+        solved_map = {sol.problem_id: True for sol in existing_solutions}
+
+        imported_count = 0
+        
+        for sub in recent_submissions:
+            normalized_title = normalize_title_safe(sub.title)
+            matched_problem = problem_map.get(normalized_title)
+            
+            try:
+                solved_date = datetime.fromtimestamp(sub.timestamp, tz=timezone.utc) if sub.timestamp else datetime.now(timezone.utc)
+            except Exception:
+                solved_date = datetime.now(timezone.utc)
+            
+            if matched_problem:
+                if not solved_map.get(matched_problem.id):
+                    new_sol = models.UserSolution(user_id=current_user.id, problem_id=matched_problem.id)
+                    if hasattr(new_sol, 'solved_at'):
+                        new_sol.solved_at = solved_date
+                    db.add(new_sol)
+                    solved_map[matched_problem.id] = True
+                    imported_count += 1
+            else:
+                if normalized_title not in custom_map:
+                    new_cp = models.CustomProblem(
+                        user_id=current_user.id, 
+                        title=sub.title, 
+                        difficulty="Unknown", 
+                        url=f"https://leetcode.com/problems/{sub.titleSlug}/" if sub.titleSlug else "",
+                        topic="Full History Sync", 
+                        source="Custom", 
+                        notes="Imported via Extension"
+                    )
+                    if hasattr(new_cp, 'solved_at'):
+                        new_cp.solved_at = solved_date
+                        
+                    db.add(new_cp)
+                    custom_map[normalized_title] = new_cp 
+                    imported_count += 1
+                    
+        db.commit()
+        return {"imported_count": imported_count, "message": "Bulk sync complete"}
+        
+    except Exception as e:
+        db.rollback()
+        print("--- BULK SYNC ERROR ---")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
