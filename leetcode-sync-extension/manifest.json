@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "DSA Tracker: LeetCode Bridge",
+  "version": "1.0",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "https://interview-prep-dashboard.onrender.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:5173/*",
+        "https://dsa-tracker-sage.vercel.app/*",
+        "https://dsa-tracker-git-main-mehul-s-projects09.vercel.app/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

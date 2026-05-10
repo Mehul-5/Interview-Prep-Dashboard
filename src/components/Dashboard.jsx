@@ -3,7 +3,6 @@ import Navbar from "./Navbar";
 import { useNavigate } from "react-router-dom";
 import AddProblemForm from "./AddProblemForm"; 
 import AIAssistant from "./AIAssistant"; 
-import LeetCodeConnector from "./LeetCodeConnector"; // Import the new component
 import { AuthContext } from "../provider/AuthContext";
 
 function Dashboard({ problems = [], onUpdate }) {
@@ -139,9 +138,6 @@ function Dashboard({ problems = [], onUpdate }) {
             );
           })}
         </div>
-
-        {/* The new LeetCode Sync Widget injected here */}
-        <LeetCodeConnector token={token} onSyncComplete={onUpdate} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
           <AddProblemForm onUpdate={onUpdate} />

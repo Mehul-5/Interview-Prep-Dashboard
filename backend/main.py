@@ -3,24 +3,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime, timezone
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 import jwt
 import os
 import json
+import re
+import traceback
 import google.generativeai as genai
-from leetcode_sync import sync_user_leetcode_data
+from dotenv import load_dotenv
+
 import models, schemas, crud, auth
 from db import engine, get_db
-from dotenv import load_dotenv
+
+# --- INITIALIZATION ---
 load_dotenv()
-
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Interview Prep Dashboard API")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+# --- AUTHENTICATION DEPENDENCY ---
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
@@ -31,6 +33,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+# --- CORS POLICY ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -39,12 +42,13 @@ app.add_middleware(
         "https://dsa-tracker-sage.vercel.app", 
         "https://dsa-tracker-git-main-mehul-s-projects09.vercel.app"
     ],
+    allow_origin_regex=r"chrome-extension://.*",  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- AUTHENTICATION ---
+# --- AUTHENTICATION ROUTES ---
 @app.post("/signup", response_model=schemas.UserResponse)
 def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
@@ -60,7 +64,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = auth.create_access_token(data={"sub": str(user.id)}, expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- SHEETS & PROBLEMS ---
+# --- SHEETS & PROBLEMS ROUTES ---
 @app.get("/sheets")
 def get_available_sheets(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     sheet_names = crud.get_all_sheet_names(db)
@@ -85,7 +89,7 @@ def get_problems(sheet_name: str, user_id: str = Depends(get_current_user), db: 
         raise HTTPException(status_code=404, detail="Sheet not found")
     return [{"id": str(p.id), "title": p.title, "difficulty": p.difficulty, "url": p.url, "topic": getattr(p, 'topic', 'General'), "sheet_name": p.sheet_name} for p in problems]
 
-# --- PROGRESS TOGGLES ---
+# --- PROGRESS TOGGLES ROUTES ---
 @app.get("/solutions", response_model=List[str])
 def get_my_solutions(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     solutions = crud.get_user_solutions(db, user_id=user_id)
@@ -111,25 +115,7 @@ def unmark_problem_solved(problem_id: int, user_id: str = Depends(get_current_us
         db.commit()
     return {"message": "Problem unmarked"}
 
-@app.post("/sync-leetcode")
-def sync_leetcode(
-    request: schemas.SyncRequest, 
-    db: Session = Depends(get_db), 
-    user_id: str = Depends(get_current_user)  # FIX 1: Removed 'auth.' prefix
-):
-    try:
-        # FIX 2: Fetch the actual User object from the database using the ID
-        current_user = db.query(models.User).filter(models.User.id == user_id).first()
-        if not current_user:
-            raise HTTPException(status_code=404, detail="User not found")
-            
-        count = sync_user_leetcode_data(db, current_user, request.leetcode_username)
-        return {"imported_count": count, "message": "Sync successful"}
-    except Exception as e:
-        print(f"Sync error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to sync with LeetCode")
-
-# --- CUSTOM PROBLEMS ---
+# --- CUSTOM PROBLEMS ROUTES ---
 class CustomProblemInput(BaseModel):
     title: str
     difficulty: str
@@ -147,8 +133,11 @@ def add_custom_problem(prob: CustomProblemInput, user_id: str = Depends(get_curr
 
     new_cp = models.CustomProblem(
         user_id=user_id, title=prob.title, difficulty=prob.difficulty, url=prob.url,
-        topic=prob.topic, source="Custom", notes=prob.note, solved_at=parsed_date 
+        topic=prob.topic, source="Custom", notes=prob.note
     )
+    if hasattr(new_cp, 'solved_at'):
+        new_cp.solved_at = parsed_date
+        
     db.add(new_cp)
     db.commit()
     return {"message": "Custom problem saved successfully"}
@@ -188,16 +177,7 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
         })
     return result
 
-# --- AI INTERVIEW ASSISTANT ---
-import os
-import json
-import re
-from dotenv import load_dotenv
-import google.generativeai as genai
-
-# FORCE Python to read the .env file so the API key is never missed
-load_dotenv() 
-
+# --- AI INTERVIEW ASSISTANT ROUTE ---
 class PrepRequest(BaseModel):
     company: str
     role: str
@@ -242,3 +222,4 @@ def generate_prep(req: PrepRequest, user_id: str = Depends(get_current_user)):
     except Exception as e:
         print(f"AI Generation Error: {e}")
         raise HTTPException(status_code=500, detail="AI generation failed. Please try again.")
+    

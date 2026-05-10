@@ -16,22 +16,35 @@ function App() {
 
   // ── THE DATA BRIDGE ──
   const fetchProgress = () => {
+    // 1. Guard clause: Do not fetch if there is no token
     if (!isAuthenticated || !token) return;
     
     fetch("https://interview-prep-dashboard.onrender.com/my-progress", {
-      headers: { Authorization: `Bearer ${token}` }
+      method: "GET", // Explicitly state the method
+      headers: { 
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json" // Good practice
+      }
     })
     .then(async (res) => {
       if (!res.ok) {
-        if (res.status === 401) logout(); 
-        throw new Error("Data bridge failed or unauthorized");
+        if (res.status === 401) {
+          console.error("Session expired or invalid token. Logging out.");
+          logout(); 
+        }
+        throw new Error(`Data bridge failed: ${res.status}`);
       }
       return res.json();
     })
     .then(data => {
-      if (Array.isArray(data)) setProblems(data);
+      if (Array.isArray(data)) {
+        setProblems(data);
+      }
     })
-    .catch(err => console.error(err));
+    .catch(err => {
+      // Don't crash the app on a network error, just log it
+      console.error("Fetch Progress Error:", err);
+    });
   };
 
   useEffect(() => {
