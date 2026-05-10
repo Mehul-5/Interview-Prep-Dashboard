@@ -1,15 +1,24 @@
 import { useContext } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../provider/AuthContext";
 
 function Navbar() {
   const { logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
+
+  // Centralized routing for easy updating
+  const navLinks = [
+    { name: "Sheets", path: "/sheets" },
+    { name: "Problems", path: "/problems" },
+    { name: "Streak", path: "/streak" },
+    { name: "Weekly", path: "/weekly" },
+  ];
 
   return (
     <nav className="relative z-20 flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.02] backdrop-blur-md gap-4 sm:gap-0">
@@ -17,11 +26,20 @@ function Navbar() {
         <Link to="/" className="text-white font-bold text-lg tracking-wide hover:text-orange-400 transition-colors">
           DSA Tracker
         </Link>
-        {/* Removed 'hidden md:flex', added wrapping and centering for mobile */}
         <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-          <Link to="/sheets" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Sheets</Link>
-          <Link to="/streak" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Streak</Link>
-          <Link to="/weekly" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Weekly</Link>
+          {navLinks.map((link) => (
+             <Link 
+               key={link.name} 
+               to={link.path} 
+               className={`text-sm font-medium transition-colors ${
+                 location.pathname === link.path 
+                 ? "text-orange-400 border-b border-orange-400 pb-0.5" 
+                 : "text-slate-400 hover:text-white"
+               }`}
+             >
+               {link.name}
+             </Link>
+          ))}
         </div>
       </div>
       
