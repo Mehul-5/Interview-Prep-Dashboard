@@ -1,7 +1,9 @@
 import { useState } from "react";
 import Navbar from "./Navbar";
+import TopicBubbles from "./TopicBubbles"; // Ensure this file exists in the same folder
 
 function Problemspage({ problems = [] }) {
+  // State to track which topic accordions are open
   const [expandedTopics, setExpandedTopics] = useState({});
 
   const toggleTopic = (topic) => {
@@ -19,14 +21,14 @@ function Problemspage({ problems = [] }) {
     return acc;
   }, {});
 
+  // Sort topics alphabetically
   const topics = Object.keys(groupedProblems).sort();
 
-  // Calculate bubble chart math
+  // Prepare data for the D3 physics bubble chart
   const chartData = topics.map(topic => ({
     topic,
     count: groupedProblems[topic].length
   }));
-  const maxCount = Math.max(...chartData.map(d => d.count), 1); // Avoid division by zero
 
   const difficultyStyle = (level) => {
     if (level === "Easy") return "text-emerald-400 bg-emerald-400/10 border-emerald-400/20";
@@ -35,18 +37,13 @@ function Problemspage({ problems = [] }) {
     return "text-slate-400 bg-slate-400/10 border-slate-400/20";
   };
 
-  // Beautiful glowing colors for the bubbles
-  const bubbleColors = [
-    "bg-indigo-500/10 border-indigo-400/30 text-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.15)]",
-    "bg-emerald-500/10 border-emerald-400/30 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]",
-    "bg-rose-500/10 border-rose-400/30 text-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.15)]",
-    "bg-amber-500/10 border-amber-400/30 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.15)]",
-    "bg-cyan-500/10 border-cyan-400/30 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]",
-    "bg-fuchsia-500/10 border-fuchsia-400/30 text-fuchsia-300 shadow-[0_0_20px_rgba(217,70,239,0.15)]"
-  ];
+  const easyCount = problems.filter((p) => p.level === "Easy").length;
+  const mediumCount = problems.filter((p) => p.level === "Medium").length;
+  const hardCount = problems.filter((p) => p.level === "Hard").length;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white relative overflow-hidden flex flex-col">
+      {/* Background Glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-[28rem] h-[28rem] bg-indigo-500/10 blur-3xl rounded-full" />
         <div className="absolute bottom-0 right-0 w-[24rem] h-[24rem] bg-cyan-400/10 blur-3xl rounded-full" />
@@ -58,38 +55,38 @@ function Problemspage({ problems = [] }) {
         <div className="mb-8">
           <p className="text-xs tracking-[0.25em] text-orange-300 uppercase mb-2 font-semibold">DSA Tracker</p>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Solved Problems</h1>
+          
+          {/* Stats Bar */}
+          <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
+            <span className="px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 text-slate-300">
+              Total: <span className="text-white ml-1">{problems.length}</span>
+            </span>
+            <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              Easy: <span className="text-white ml-1">{easyCount}</span>
+            </span>
+            <span className="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              Medium: <span className="text-white ml-1">{mediumCount}</span>
+            </span>
+            <span className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400">
+              Hard: <span className="text-white ml-1">{hardCount}</span>
+            </span>
+          </div>
         </div>
 
-        {/* 1. Dynamic Bubble Chart Visualization */}
+        {/* 1. Dynamic Physics Bubble Chart Visualization */}
         {chartData.length > 0 && (
-          <div className="mb-10 p-8 rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-            <h2 className="text-xs text-slate-400 uppercase tracking-wider mb-8 text-center">Topic Distribution</h2>
-            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-              {chartData.map((data, i) => {
-                // Math: Scale bubble size smoothly based on relative count
-                const ratio = data.count / maxCount;
-                const size = 80 + (ratio * 80); // Sizes between 80px and 160px
-                const colorClass = bubbleColors[i % bubbleColors.length];
-
-                return (
-                  <div 
-                    key={data.topic} 
-                    style={{ width: `${size}px`, height: `${size}px` }}
-                    className={`flex flex-col items-center justify-center rounded-full border transition-all duration-300 hover:scale-110 cursor-pointer ${colorClass} p-3 text-center`}
-                    onClick={() => {
-                      // Clicking a bubble automatically opens its accordion below
-                      setExpandedTopics(prev => ({ ...prev, [data.topic]: true }));
-                      // Smooth scroll down to the accordion
-                      window.scrollBy({ top: 300, behavior: 'smooth' });
-                    }}
-                    title={`${data.topic}: ${data.count} problems`}
-                  >
-                    <span className="font-bold text-xl sm:text-2xl mb-0.5">{data.count}</span>
-                    <span className="text-[10px] sm:text-xs leading-tight opacity-90 truncate w-full px-1">{data.topic}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="mb-10 p-2 sm:p-8 rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
+            <h2 className="text-xs text-slate-400 uppercase tracking-wider mb-2 text-center">Interactive Topic Distribution</h2>
+            <p className="text-xs text-slate-500 text-center mb-6">Drag and throw bubbles to interact. Click a bubble to view problems.</p>
+            
+            <TopicBubbles 
+               data={chartData} 
+               onTopicClick={(topic) => {
+                 // When user clicks a bubble, open the accordion and scroll to it
+                 setExpandedTopics(prev => ({ ...prev, [topic]: true }));
+                 window.scrollBy({ top: 500, behavior: 'smooth' });
+               }} 
+            />
           </div>
         )}
 
@@ -107,11 +104,13 @@ function Problemspage({ problems = [] }) {
 
               return (
                 <div key={topic} className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden backdrop-blur-md transition-all duration-300">
+                  {/* Accordion Header */}
                   <button
                     onClick={() => toggleTopic(topic)}
                     className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.04] transition-colors"
                   >
                     <div className="flex items-center gap-3">
+                      {/* Dropdown Chevron */}
                       <svg
                         className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -126,6 +125,7 @@ function Problemspage({ problems = [] }) {
                     </span>
                   </button>
 
+                  {/* Accordion Content */}
                   {isExpanded && (
                     <div className="border-t border-white/5 bg-black/20">
                       {topicProblems.map((p, index) => (
@@ -146,7 +146,13 @@ function Problemspage({ problems = [] }) {
                               {p.level}
                             </span>
                             {p.url && (
-                              <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors p-1">
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-400 hover:text-indigo-300 transition-colors p-1"
+                                title="Open in LeetCode"
+                              >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
