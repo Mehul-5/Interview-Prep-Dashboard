@@ -74,7 +74,8 @@ def get_available_sheets(user_id: str = Depends(get_current_user), db: Session =
         count = db.query(models.Problem).filter(models.Problem.sheet_name == name).count()
         result.append({"id": name, "name": name, "totalProblems": count})
         
-    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
+    # RESTORED: Count the custom problems without throwing a NameError
+    custom_count = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).count()
     result.append({"id": "Custom Problems", "name": "Custom Problems", "totalProblems": custom_count if custom_count > 0 else 1})
     return result
 
@@ -166,7 +167,8 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
                 "fromSheet": prob.sheet_name
             })
             
-    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id, models.CustomProblem.source == "Custom").all()
+    # THE REAL FIX: Fetch ALL custom problems regardless of their source string
+    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
         cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
         result.append({
