@@ -76,8 +76,6 @@ function Problemspage({ problems = [] }) {
         {/* 1. Dynamic Physics Bubble Chart Visualization */}
         {chartData.length > 0 && (
           <div className="mb-10 p-2 sm:p-8 rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-            <h2 className="text-xs text-slate-400 uppercase tracking-wider mb-2 text-center">Interactive Topic Distribution</h2>
-            <p className="text-xs text-slate-500 text-center mb-6">Drag and throw bubbles to interact. Click a bubble to view problems.</p>
             
             <TopicBubbles 
                data={chartData} 
