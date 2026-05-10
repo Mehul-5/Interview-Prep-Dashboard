@@ -10,7 +10,7 @@ A high-performance, full-stack application designed to track Data Structures and
 ## 📸 Screenshots
 
 ### The Dashboard & Progress Tracking
-![Dashboard View](./docs/Screenshot%202026-05-10%20145223.png)
+![Dashboard View](./docs/Screenshot%202026-05-10%20173051.png)
 
 ### Curated Practice Sheets (Blind 75, NeetCode 150)
 ![Practice Sheets](./docs/Screenshot%202026-05-10%20145533.png)
@@ -27,6 +27,7 @@ A high-performance, full-stack application designed to track Data Structures and
 * **Smart Problem Filtering:** Auto-tagging classification engine that groups problems by topic (Arrays, DP, Graphs) into a LeetCode-style accordion interface.
 * **Robust Authentication:** Secure JWT-based user sessions with automatic token expiration handling and route protection.
 * **Production-Grade CI/CD:** GitHub Actions pipeline configured with dependency caching and live PostgreSQL service testing.
+* **Automated LeetCode Synchronization:** Custom GraphQL extraction engine that bypasses the lack of an official API to silently pull, normalize, and sync a user's recent accepted submissions directly into the PostgreSQL database.
 
 ## 🛠️ Tech Stack
 
@@ -42,6 +43,7 @@ A high-performance, full-stack application designed to track Data Structures and
 * **ORM & Migrations:** SQLAlchemy + Alembic
 * **Authentication:** Passlib (Bcrypt) + PyJWT
 * **AI Integration:** Google Generative AI (`gemini-2.5-flash`)
+* **Data Extraction:** Direct GraphQL API Querying & Regex-based Title Normalization
 
 ## 💻 Local Development Setup
 
