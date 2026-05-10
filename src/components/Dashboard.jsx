@@ -80,7 +80,7 @@ function Dashboard({ problems = [], onUpdate }) {
     { title: "Total Problems", value: problems.length, icon: "📋", accent: "blue", route: "/problems" },
     { title: "Last 7 Days", value: weeklyproblems.length, icon: "📅", accent: "orange", route: "/weekly" },
     { title: "Current Streak", value: `${streak} days`, icon: streak > 0 ? "🔥" : "❄️", accent: "amber", route: "/streak" },
-    { title: "Hard Problems", value: hardproblems.length, icon: "⚡", accent: "red", route: "/hard" },
+    { title: "Hard Problems", value: hardproblems.length, icon: "⚡", accent: "red"},
   ];
 
   // Map the fetched dynamic sheets to the progress calculations
