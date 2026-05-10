@@ -14,57 +14,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
       syncBtn.disabled = true;
       statusDiv.style.color = "#94a3b8";
+      statusDiv.innerText = "Authenticating and fetching Master Problem List...";
 
       try {
-        let offset = 0;
-        let allAccepted = [];
-        let hasMore = true;
+        // --- THE MASTER STATE ENGINE ---
+        // Instead of paginating through limited history, we hit the core API 
+        // that tracks the 'Solved' status for every problem on the platform.
+        const lcResponse = await fetch('https://leetcode.com/api/problems/all/', {
+          method: 'GET',
+          credentials: 'include'
+        });
 
-        // --- THE DEEP CRAWLER ENGINE ---
-        while (hasMore) {
-          statusDiv.innerText = `Scanning deep history... (Found ${allAccepted.length} accepted so far)`;
-          
-          const lcResponse = await fetch(`https://leetcode.com/api/submissions/?offset=${offset}&limit=100`, {
-            method: 'GET',
-            credentials: 'include'
-          });
-
-          if (lcResponse.status === 401 || lcResponse.status === 403) {
-            throw new Error("LeetCode rejected the request. Open a LeetCode tab and log in.");
-          }
-
-          const lcData = await lcResponse.json();
-          
-          if (!lcData.submissions_dump || lcData.submissions_dump.length === 0) {
-            hasMore = false;
-            break;
-          }
-
-          const acceptedSubs = lcData.submissions_dump
-            .filter(sub => sub.status_display === "Accepted")
-            .map(sub => ({
-              title: sub.title,
-              titleSlug: sub.title_slug,
-              timestamp: sub.timestamp
-            }));
-
-          allAccepted.push(...acceptedSubs);
-
-          // If LeetCode says there is more data, increment the offset and keep digging
-          if (lcData.has_next) {
-            offset += 100;
-            // Polite delay to prevent Cloudflare from banning your IP
-            await new Promise(resolve => setTimeout(resolve, 500)); 
-          } else {
-            hasMore = false;
-          }
+        if (lcResponse.status === 401 || lcResponse.status === 403) {
+          throw new Error("LeetCode rejected the request. Open a LeetCode tab and log in.");
         }
 
-        if (allAccepted.length === 0) {
-          throw new Error("No accepted submissions found on this LeetCode profile.");
+        const lcData = await lcResponse.json();
+        
+        if (!lcData.stat_status_pairs) {
+          throw new Error("Failed to parse LeetCode problem data.");
         }
 
-        statusDiv.innerText = `Total extracted: ${allAccepted.length} problems. Pushing to Render...`;
+        const currentTime = Math.floor(Date.now() / 1000);
+
+        // Filter for only the problems where status is 'ac' (Accepted)
+        const acceptedSubs = lcData.stat_status_pairs
+          .filter(pair => pair.status === "ac")
+          .map(pair => ({
+            title: pair.stat.question__title,
+            titleSlug: pair.stat.question__title_slug,
+            timestamp: currentTime // Fallback to current time since this endpoint doesn't track exact submission dates
+          }));
+
+        if (acceptedSubs.length === 0) {
+          throw new Error("No accepted problems found on this LeetCode profile.");
+        }
+
+        statusDiv.innerText = `Found exactly ${acceptedSubs.length} solved problems. Pushing to Render...`;
 
         // --- PUSH TO DATABASE ---
         const backendResponse = await fetch('https://interview-prep-dashboard.onrender.com/bulk-sync-leetcode', {
@@ -73,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ submissions: allAccepted })
+          body: JSON.stringify({ submissions: acceptedSubs })
         });
 
         if (!backendResponse.ok) {
@@ -91,9 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // --- IDEMPOTENCY AWARENESS UI ---
         if (result.imported_count === 0) {
-            statusDiv.innerText = `Sync Complete! All ${allAccepted.length} unique problems are already safely in your database.`;
+            statusDiv.innerText = `Sync Complete! All ${acceptedSubs.length} problems are already safely in your database.`;
         } else {
-            statusDiv.innerText = `Success! Imported ${result.imported_count} new problems.`;
+            statusDiv.innerText = `Success! Imported ${result.imported_count} new problems. (Total Solved: ${acceptedSubs.length})`;
         }
         statusDiv.style.color = "#10b981";
 
