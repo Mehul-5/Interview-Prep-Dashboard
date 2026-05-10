@@ -14,15 +14,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
       syncBtn.disabled = true;
       statusDiv.style.color = "#94a3b8";
-      statusDiv.innerText = "Authenticating and fetching Master Problem List...";
+      statusDiv.innerText = "Accessing LeetCode GraphQL layer...";
 
       try {
-        // --- THE MASTER STATE ENGINE ---
-        // Instead of paginating through limited history, we hit the core API 
-        // that tracks the 'Solved' status for every problem on the platform.
-        const lcResponse = await fetch('https://leetcode.com/api/problems/all/', {
-          method: 'GET',
-          credentials: 'include'
+        // --- THE GRAPHQL ENGINE ---
+        // We query LeetCode's internal database directly, filtering by 'AC' (Accepted),
+        // and demanding the exact 'topicTags' for every problem.
+        const lcResponse = await fetch('https://leetcode.com/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            query: `
+              query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QFilter) {
+                problemsetQuestionList: questionList(
+                  categorySlug: $categorySlug
+                  limit: $limit
+                  skip: $skip
+                  filters: $filters
+                ) {
+                  data {
+                    title
+                    titleSlug
+                    topicTags { name }
+                  }
+                }
+              }
+            `,
+            variables: {
+              categorySlug: "",
+              skip: 0,
+              limit: 5000,
+              filters: { status: "AC" }
+            }
+          })
         });
 
         if (lcResponse.status === 401 || lcResponse.status === 403) {
@@ -30,27 +55,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const lcData = await lcResponse.json();
+        const problems = lcData.data?.problemsetQuestionList?.data;
         
-        if (!lcData.stat_status_pairs) {
-          throw new Error("Failed to parse LeetCode problem data.");
+        if (!problems || problems.length === 0) {
+          throw new Error("No accepted problems found on this LeetCode profile.");
         }
 
         const currentTime = Math.floor(Date.now() / 1000);
 
-        // Filter for only the problems where status is 'ac' (Accepted)
-        const acceptedSubs = lcData.stat_status_pairs
-          .filter(pair => pair.status === "ac")
-          .map(pair => ({
-            title: pair.stat.question__title,
-            titleSlug: pair.stat.question__title_slug,
-            timestamp: currentTime // Fallback to current time since this endpoint doesn't track exact submission dates
-          }));
+        // Map the GraphQL response to our backend payload, extracting the exact first tag
+        const acceptedSubs = problems.map(p => {
+          const exactTopic = p.topicTags && p.topicTags.length > 0 ? p.topicTags[0].name : "General";
+          return {
+            title: p.title,
+            titleSlug: p.titleSlug,
+            timestamp: currentTime,
+            topic: exactTopic 
+          };
+        });
 
-        if (acceptedSubs.length === 0) {
-          throw new Error("No accepted problems found on this LeetCode profile.");
-        }
-
-        statusDiv.innerText = `Found exactly ${acceptedSubs.length} solved problems. Pushing to Render...`;
+        statusDiv.innerText = `Extracted ${acceptedSubs.length} perfectly tagged problems. Pushing to Render...`;
 
         // --- PUSH TO DATABASE ---
         const backendResponse = await fetch('https://interview-prep-dashboard.onrender.com/bulk-sync-leetcode', {
@@ -75,11 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const result = await backendResponse.json();
         
-        // --- IDEMPOTENCY AWARENESS UI ---
         if (result.imported_count === 0) {
-            statusDiv.innerText = `Sync Complete! All ${acceptedSubs.length} problems are already safely in your database.`;
+            statusDiv.innerText = `Sync Complete! All ${acceptedSubs.length} problems are already in your database.`;
         } else {
-            statusDiv.innerText = `Success! Imported ${result.imported_count} new problems. (Total Solved: ${acceptedSubs.length})`;
+            statusDiv.innerText = `Success! Imported ${result.imported_count} new perfectly tagged problems.`;
         }
         statusDiv.style.color = "#10b981";
 

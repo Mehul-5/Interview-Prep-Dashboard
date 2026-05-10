@@ -228,6 +228,7 @@ class BulkProblem(BaseModel):
     title: Optional[str] = None
     titleSlug: Optional[str] = ""
     timestamp: Optional[int] = 0
+    topic: Optional[str] = "General"  # NEW: Accept exact topic from the extension
 
 class BulkSyncRequest(BaseModel):
     submissions: List[BulkProblem]
@@ -235,27 +236,6 @@ class BulkSyncRequest(BaseModel):
 def normalize_title_safe(title: str) -> str:
     if not title: return ""
     return re.sub(r'[^a-z0-9]', '', title.lower())
-
-# THE CLASSIFICATION ENGINE INTEGRATED INTO PIPELINE
-def auto_tag_title(title: str) -> str:
-    if not title: return "General"
-    title_lower = title.lower()
-    keyword_map = {
-        "Arrays & Hashing": ["array", "sum", "duplicate", "anagram", "hash", "product", "consecutive", "matrix"],
-        "Linked List": ["linked list", "list node", "cycle", "reverse list", "merge"],
-        "Trees": ["tree", "bst", "trie", "forest", "node", "root", "ancestor", "depth"],
-        "Dynamic Programming": ["dp", "dynamic programming", "climbing stairs", "house robber", "coin change", "word break", "jump game"],
-        "Graphs": ["graph", "island", "course schedule", "network", "path", "clone"],
-        "Sliding Window": ["window", "substring", "longest sequence", "character replacement"],
-        "Two Pointers": ["two pointer", "container", "trapping rain", "water"],
-        "Intervals": ["interval", "merge", "insert"],
-        "Binary Search": ["search", "rotated", "median"],
-        "Stack": ["stack", "parentheses", "polish notation", "temperature"],
-    }
-    for topic, keywords in keyword_map.items():
-        if any(kw in title_lower for kw in keywords):
-            return topic
-    return "General"
 
 @app.post("/bulk-sync-leetcode")
 def bulk_sync_leetcode(
@@ -308,9 +288,9 @@ def bulk_sync_leetcode(
                     new_cp = models.CustomProblem(
                         user_id=current_user.id, 
                         title=sub.title, 
-                        difficulty="Medium", # Setting a default Medium difficulty
+                        difficulty="Medium", 
                         url=f"https://leetcode.com/problems/{sub.titleSlug}/" if sub.titleSlug else "",
-                        topic=auto_tag_title(sub.title), # AI ENGINE DEPLOYED HERE
+                        topic=sub.topic, # ZERO AI. Directly uses LeetCode's exact GraphQL tag.
                         source="Custom", 
                         notes="Imported via Extension"
                     )
