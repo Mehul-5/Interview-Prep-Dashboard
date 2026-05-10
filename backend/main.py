@@ -74,7 +74,6 @@ def get_available_sheets(user_id: str = Depends(get_current_user), db: Session =
         count = db.query(models.Problem).filter(models.Problem.sheet_name == name).count()
         result.append({"id": name, "name": name, "totalProblems": count})
         
-    # RESTORED: Count the custom problems without throwing a NameError
     custom_count = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).count()
     result.append({"id": "Custom Problems", "name": "Custom Problems", "totalProblems": custom_count if custom_count > 0 else 1})
     return result
@@ -167,7 +166,7 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
                 "fromSheet": prob.sheet_name
             })
             
-    # THE REAL FIX: Fetch ALL custom problems regardless of their source string
+    # FIXED: We removed the aggressive `source == "Custom"` filter here!
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
         cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
@@ -237,6 +236,27 @@ def normalize_title_safe(title: str) -> str:
     if not title: return ""
     return re.sub(r'[^a-z0-9]', '', title.lower())
 
+# THE CLASSIFICATION ENGINE INTEGRATED INTO PIPELINE
+def auto_tag_title(title: str) -> str:
+    if not title: return "General"
+    title_lower = title.lower()
+    keyword_map = {
+        "Arrays & Hashing": ["array", "sum", "duplicate", "anagram", "hash", "product", "consecutive", "matrix"],
+        "Linked List": ["linked list", "list node", "cycle", "reverse list", "merge"],
+        "Trees": ["tree", "bst", "trie", "forest", "node", "root", "ancestor", "depth"],
+        "Dynamic Programming": ["dp", "dynamic programming", "climbing stairs", "house robber", "coin change", "word break", "jump game"],
+        "Graphs": ["graph", "island", "course schedule", "network", "path", "clone"],
+        "Sliding Window": ["window", "substring", "longest sequence", "character replacement"],
+        "Two Pointers": ["two pointer", "container", "trapping rain", "water"],
+        "Intervals": ["interval", "merge", "insert"],
+        "Binary Search": ["search", "rotated", "median"],
+        "Stack": ["stack", "parentheses", "polish notation", "temperature"],
+    }
+    for topic, keywords in keyword_map.items():
+        if any(kw in title_lower for kw in keywords):
+            return topic
+    return "General"
+
 @app.post("/bulk-sync-leetcode")
 def bulk_sync_leetcode(
     request: BulkSyncRequest, 
@@ -288,9 +308,9 @@ def bulk_sync_leetcode(
                     new_cp = models.CustomProblem(
                         user_id=current_user.id, 
                         title=sub.title, 
-                        difficulty="Unknown", 
+                        difficulty="Medium", # Setting a default Medium difficulty
                         url=f"https://leetcode.com/problems/{sub.titleSlug}/" if sub.titleSlug else "",
-                        topic="Full History Sync", 
+                        topic=auto_tag_title(sub.title), # AI ENGINE DEPLOYED HERE
                         source="Custom", 
                         notes="Imported via Extension"
                     )
@@ -306,6 +326,5 @@ def bulk_sync_leetcode(
         
     except Exception as e:
         db.rollback()
-        print("--- BULK SYNC ERROR ---")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
