@@ -36,24 +36,28 @@ def sync_user_leetcode_data(db: Session, user: models.User, target_username: str
     recent_submissions = fetch_recent_solved(target_username)
     
     if not recent_submissions:
-        # Profile might be private or invalid
         return 0
 
-    # Pull all standard problems into memory for fast matching
+    # 1. Pull standard problems for fast matching
     all_problems = db.query(models.Problem).all()
     problem_map = {normalize_title(p.title): p for p in all_problems}
+    
+    # 2. Pull existing custom problems so we don't duplicate imports
+    existing_custom = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user.id).all()
+    custom_map = {normalize_title(cp.title): cp for cp in existing_custom}
     
     imported_count = 0
     
     for sub in recent_submissions:
         lc_title = sub.get("title")
+        lc_slug = sub.get("titleSlug")
         if not lc_title: continue
         
         normalized_lc_title = normalize_title(lc_title)
         matched_problem = problem_map.get(normalized_lc_title)
         
         if matched_problem:
-            # Verify they haven't already marked this as solved in your DB
+            # ROUTE A: It's a standard sheet problem
             existing = db.query(models.UserSolution).filter(
                 models.UserSolution.user_id == user.id,
                 models.UserSolution.problem_id == matched_problem.id
@@ -67,8 +71,24 @@ def sync_user_leetcode_data(db: Session, user: models.User, target_username: str
                 db.add(new_solution)
                 imported_count += 1
                 
+        else:
+            # ROUTE B: It's an unknown problem. Send to Custom Problems.
+            if normalized_lc_title not in custom_map:
+                new_cp = models.CustomProblem(
+                    user_id=user.id,
+                    title=lc_title,
+                    difficulty="Medium", # LeetCode's lightweight query doesn't return difficulty, defaulting to Medium
+                    url=f"https://leetcode.com/problems/{lc_slug}/" if lc_slug else "",
+                    topic="LeetCode Sync",
+                    source="Custom",
+                    notes="Auto-imported from LeetCode"
+                )
+                db.add(new_cp)
+                # Add to local map so we don't insert it twice in the same loop
+                custom_map[normalized_lc_title] = new_cp 
+                imported_count += 1
+                
     if imported_count > 0 or user.leetcode_username != target_username:
-        # Save their username so we can auto-sync later
         user.leetcode_username = target_username
         db.commit()
         
