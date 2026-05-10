@@ -3,6 +3,7 @@ import Navbar from "./Navbar";
 import { useNavigate } from "react-router-dom";
 import AddProblemForm from "./AddProblemForm"; 
 import AIAssistant from "./AIAssistant"; 
+import LeetCodeConnector from "./LeetCodeConnector"; // Import the new component
 import { AuthContext } from "../provider/AuthContext";
 
 function Dashboard({ problems = [], onUpdate }) {
@@ -76,11 +77,10 @@ function Dashboard({ problems = [], onUpdate }) {
   }
 
   const statCards = [
-    // Note: Ensure you have a Route set up for "/problems" in App.jsx (e.g. mapping to Problemspage.jsx)
-    { title: "Total Problems", value: problems.length, icon: "🎯", accent: "blue", route: "/problems" },
-    { title: "Last 7 Days", value: weeklyproblems.length, icon: "🔥", accent: "orange", route: "/weekly" },
-    { title: "Current Streak", value: `${streak} days`, icon: streak > 0 ? "🏃" : "🚶", accent: "amber", route: "/streak" },
-    { title: "Hard Problems", value: hardproblems.length, icon: "🌋", accent: "red" },
+    { title: "Total Problems", value: problems.length, icon: "📋", accent: "blue", route: "/problems" },
+    { title: "Last 7 Days", value: weeklyproblems.length, icon: "📅", accent: "orange", route: "/weekly" },
+    { title: "Current Streak", value: `${streak} days`, icon: streak > 0 ? "🔥" : "❄️", accent: "amber", route: "/streak" },
+    { title: "Hard Problems", value: hardproblems.length, icon: "⚡", accent: "red", route: "/hard" },
   ];
 
   // Map the fetched dynamic sheets to the progress calculations
@@ -140,6 +140,9 @@ function Dashboard({ problems = [], onUpdate }) {
           })}
         </div>
 
+        {/* The new LeetCode Sync Widget injected here */}
+        <LeetCodeConnector token={token} onSyncComplete={onUpdate} />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
           <AddProblemForm onUpdate={onUpdate} />
           <AIAssistant onUpdate={onUpdate} />
@@ -193,7 +196,7 @@ function Dashboard({ problems = [], onUpdate }) {
                             </a>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400 capitalize mt-1">{problem.topic} • {problem.date}</p>
+                        <p className="text-xs text-slate-400 capitalize mt-1">{problem.topic} • {new Date(problem.date).toLocaleDateString()}</p>
                       </div>
                       <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${problem.level === "Easy" ? "bg-emerald-500/10 text-emerald-300 border-emerald-400/20" : problem.level === "Hard" ? "bg-rose-500/10 text-rose-300 border-rose-400/20" : "bg-amber-500/10 text-amber-300 border-amber-400/20"}`}>
                         {problem.level}
