@@ -111,6 +111,20 @@ def unmark_problem_solved(problem_id: int, user_id: str = Depends(get_current_us
         db.commit()
     return {"message": "Problem unmarked"}
 
+from leetcode_sync import sync_user_leetcode_data
+
+@app.post("/sync-leetcode")
+def sync_leetcode(
+    request: schemas.SyncRequest, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    try:
+        count = sync_user_leetcode_data(db, current_user, request.leetcode_username)
+        return {"imported_count": count, "message": "Sync successful"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- CUSTOM PROBLEMS ---
 class CustomProblemInput(BaseModel):
     title: str

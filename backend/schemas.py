@@ -3,6 +3,9 @@ from datetime import datetime
 from uuid import UUID
 
 # --- USER SCHEMAS ---
+
+class SyncRequest(BaseModel):
+    leetcode_username: str
 class UserCreate(BaseModel):
     username: str
     email: EmailStr

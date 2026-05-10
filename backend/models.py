@@ -26,6 +26,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=get_utc_now
     )
+    leetcode_username: Mapped[str] = mapped_column(String(50), unique=True, nullable=True)
 
     solutions = relationship("UserSolution", back_populates="user", cascade="all, delete-orphan")
     custom_problems = relationship("CustomProblem", back_populates="user", cascade="all, delete-orphan")
