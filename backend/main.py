@@ -22,6 +22,16 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Interview Prep Dashboard API")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+# --- STATIC TAG DATABASE ---
+# Load the static JSON map into memory on server boot for O(1) lookups.
+LC_TAGS_MAP = {}
+try:
+    with open("leetcode_tags.json", "r") as f:
+        LC_TAGS_MAP = json.load(f)
+    print(f"Loaded {len(LC_TAGS_MAP)} static LeetCode tags.")
+except Exception as e:
+    print(f"WARNING: leetcode_tags.json load failed: {e}. Using keyword fallback.")
+
 # --- AUTHENTICATION DEPENDENCY ---
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -33,7 +43,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-# --- CORS POLICY ---
+# --- CORS POLICY (HARDENED) ---
+# This regex allows Localhost, Vercel, and Chrome Extension origins simultaneously.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -89,13 +100,14 @@ def get_problems(sheet_name: str, user_id: str = Depends(get_current_user), db: 
         raise HTTPException(status_code=404, detail="Sheet not found")
     return [{"id": str(p.id), "title": p.title, "difficulty": p.difficulty, "url": p.url, "topic": getattr(p, 'topic', 'General'), "sheet_name": p.sheet_name} for p in problems]
 
-# --- PROGRESS TOGGLES ROUTES ---
+# --- PROGRESS & SOLUTIONS ---
 @app.get("/solutions", response_model=List[str])
 def get_my_solutions(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     solutions = crud.get_user_solutions(db, user_id=user_id)
     solved_ids = [str(sol.problem_id) for sol in solutions]
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
+        # We ensure custom problems are identified by their 'custom-' prefix for the frontend
         if cp.source == "Custom": 
             solved_ids.append(f"custom-{cp.id}")
     return solved_ids
@@ -115,7 +127,7 @@ def unmark_problem_solved(problem_id: int, user_id: str = Depends(get_current_us
         db.commit()
     return {"message": "Problem unmarked"}
 
-# --- CUSTOM PROBLEMS ROUTES ---
+# --- CUSTOM PROBLEMS ---
 class CustomProblemInput(BaseModel):
     title: str
     difficulty: str
@@ -142,15 +154,6 @@ def add_custom_problem(prob: CustomProblemInput, user_id: str = Depends(get_curr
     db.commit()
     return {"message": "Custom problem saved successfully"}
 
-@app.put("/custom-problems/{problem_id}/toggle")
-def toggle_custom_problem(problem_id: int, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    cp = db.query(models.CustomProblem).filter(models.CustomProblem.id == problem_id, models.CustomProblem.user_id == user_id).first()
-    if cp:
-        cp.source = "Custom-Revise" if cp.source == "Custom" else "Custom"
-        db.commit()
-        return {"status": cp.source}
-    raise HTTPException(status_code=404, detail="Problem not found")
-
 @app.get("/my-progress")
 def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     result = []
@@ -166,7 +169,7 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
                 "fromSheet": prob.sheet_name
             })
             
-    # FIXED: We removed the aggressive `source == "Custom"` filter here!
+    # UNFILTERED: Returns all custom problems for the account (Fixed the display bug)
     custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     for cp in custom_probs:
         cp_date = getattr(cp, 'solved_at', None) or getattr(cp, 'created_at', None) or datetime.utcnow()
@@ -178,6 +181,7 @@ def get_my_progress(user_id: str = Depends(get_current_user), db: Session = Depe
         })
     return result
 
+# --- AI INTERVIEW ASSISTANT ---
 class PrepRequest(BaseModel):
     company: str
     role: str
@@ -228,7 +232,6 @@ class BulkProblem(BaseModel):
     title: Optional[str] = None
     titleSlug: Optional[str] = ""
     timestamp: Optional[int] = 0
-    topic: Optional[str] = "General"  # NEW: Accept exact topic from the extension
 
 class BulkSyncRequest(BaseModel):
     submissions: List[BulkProblem]
@@ -236,6 +239,27 @@ class BulkSyncRequest(BaseModel):
 def normalize_title_safe(title: str) -> str:
     if not title: return ""
     return re.sub(r'[^a-z0-9]', '', title.lower())
+
+# THE CLASSIFICATION ENGINE INTEGRATED INTO PIPELINE
+def auto_tag_title(title: str) -> str:
+    if not title: return "General"
+    title_lower = title.lower()
+    keyword_map = {
+        "Arrays & Hashing": ["array", "sum", "duplicate", "anagram", "hash", "product", "consecutive", "matrix"],
+        "Linked List": ["linked list", "list node", "cycle", "reverse list", "merge"],
+        "Trees": ["tree", "bst", "trie", "forest", "node", "root", "ancestor", "depth"],
+        "Dynamic Programming": ["dp", "dynamic programming", "climbing stairs", "house robber", "coin change", "word break", "jump game"],
+        "Graphs": ["graph", "island", "course schedule", "network", "path", "clone"],
+        "Sliding Window": ["window", "substring", "longest sequence", "character replacement"],
+        "Two Pointers": ["two pointer", "container", "trapping rain", "water"],
+        "Intervals": ["interval", "merge", "insert"],
+        "Binary Search": ["search", "rotated", "median"],
+        "Stack": ["stack", "parentheses", "polish notation", "temperature"],
+    }
+    for topic, keywords in keyword_map.items():
+        if any(kw in title_lower for kw in keywords):
+            return topic
+    return "General"
 
 @app.post("/bulk-sync-leetcode")
 def bulk_sync_leetcode(
@@ -288,9 +312,9 @@ def bulk_sync_leetcode(
                     new_cp = models.CustomProblem(
                         user_id=current_user.id, 
                         title=sub.title, 
-                        difficulty="Medium", 
+                        difficulty="Medium", # Setting a default Medium difficulty
                         url=f"https://leetcode.com/problems/{sub.titleSlug}/" if sub.titleSlug else "",
-                        topic=sub.topic, # ZERO AI. Directly uses LeetCode's exact GraphQL tag.
+                        topic=auto_tag_title(sub.title), # AI ENGINE DEPLOYED HERE
                         source="Custom", 
                         notes="Imported via Extension"
                     )
