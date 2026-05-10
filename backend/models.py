@@ -38,6 +38,7 @@ class Problem(Base):
     difficulty: Mapped[str] = mapped_column(String(50))
     url: Mapped[str] = mapped_column(Text)
     sheet_name: Mapped[str] = mapped_column(String(255), index=True)
+    topic: Mapped[str] = mapped_column(String(50), nullable=True, default="General")
 
     solved_by = relationship("UserSolution", back_populates="problem", cascade="all, delete-orphan")
 
