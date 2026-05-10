@@ -74,7 +74,7 @@ def get_available_sheets(user_id: str = Depends(get_current_user), db: Session =
         count = db.query(models.Problem).filter(models.Problem.sheet_name == name).count()
         result.append({"id": name, "name": name, "totalProblems": count})
         
-    custom_count = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).count()
+    custom_probs = db.query(models.CustomProblem).filter(models.CustomProblem.user_id == user_id).all()
     result.append({"id": "Custom Problems", "name": "Custom Problems", "totalProblems": custom_count if custom_count > 0 else 1})
     return result
 
