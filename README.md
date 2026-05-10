@@ -1,145 +1,138 @@
-# 🚀 DSA Prep Dashboard
 
-A modern **DSA tracking and analytics dashboard** built using React to help maintain consistency, track progress, and improve problem-solving during technical interview preparation.
+# DSA Interview Prep Dashboard
 
-🔗 **Live Demo:** https://dsa-prep-dashboard.vercel.app/
+A high-performance, full-stack application designed to track Data Structures and Algorithms (DSA) preparation. It features curated problem sheets, interactive physics-based analytics, and an AI-powered assistant for targeted, company-specific interview preparation.
 
----
-
-## 📌 Overview
-
-This project helps users track their DSA journey in a structured and visual way.
-
-It provides:
-- Streak tracking for consistency 🔥  
-- Weekly analytics for performance 📊  
-- Topic-wise and difficulty-wise insights  
-- Sheet-based structured preparation  
-
-The goal is to make DSA preparation **data-driven, consistent, and motivating**.
-
-> Designed as a foundation for integrating AI-based preparation strategies in future versions.
-
----
-
-## ✨ Features
-
-### 📊 Dashboard
-- Total problems solved
-- Weekly progress overview
-- Current streak display
-- Hard problem tracking
-
-### 🔥 Streak System
-- Current streak calculation
-- Longest streak tracking
-- Last 30 days activity consistency
-- Topic-wise problem distribution
-- Difficulty breakdown (Easy / Medium / Hard)
-
-### 📅 Weekly Analytics
-- Problems solved per day (bar chart)
-- Difficulty distribution (pie chart)
-- Last 7 days performance tracking
-
-### 📘 Sheet-Based Practice
-- Practice problems from sheets (Striver etc.)
-- Track solved problems per sheet
-- Completion percentage tracking
-
-### 📚 Problem Management
-- Add solved problems with:
-  - Name
-  - Difficulty
-  - Topic
-  - Date
-  - Notes
-- Search and filter problems
-- View complete problem history
-
-### 💾 Data Persistence
-- Uses browser localStorage
-- Data remains even after refresh
-
-### 🎨 UI/UX
-- Premium dark theme
-- Glassmorphism-inspired design
-- Smooth transitions and hover effects
-- Responsive layout
-
----
+## 🚀 Live Demo
+* **Frontend:** [Deployed on Vercel] *(https://dsa-tracker-sage.vercel.app/)*
+* **Backend:** [Deployed on Render] *(https://interview-prep-dashboard.onrender.com)*
 
 ## 📸 Screenshots
 
-### 🧠 Dashboard
-<img width="3839" height="2145" alt="Screenshot 2026-04-02 121745" src="https://github.com/user-attachments/assets/3adb27db-d7e3-4528-83e7-78233e7b6239" />
+### The Dashboard & Progress Tracking
+![Dashboard View](./docs/Screenshot%202026-05-10%20145223.png)
 
+### Curated Practice Sheets (Blind 75, NeetCode 150)
+![Practice Sheets](./docs/Screenshot%202026-05-10%20145533.png)
 
----
+### Interactive D3.js Topic Visualization & Problem Table
+![Interactive Bubble Chart](./docs/Screenshot%202026-05-10%20145603.png)
+![Problem Filters](./docs/Screenshot%202026-05-10%20145550.png)
 
-### 📘 Sheets Page
+## ✨ Core Features
 
-<img width="3833" height="2136" alt="Screenshot 2026-04-02 122259" src="https://github.com/user-attachments/assets/77e5b55f-872f-478c-aa55-674e8861bc9f" />
+* **Curated Problem Sheets:** Integrated tracking for industry-standard lists including Blind 75, NeetCode 150, and Striver's SDE Sheet.
+* **Interactive Data Visualization:** Custom D3.js physics engine rendering a reactive, collision-detecting bubble chart for topic distribution.
+* **AI Interview Assistant:** Powered by **Google Gemini 2.5 Flash**, generating dynamic, structured LeetCode suggestions based on specific companies and engineering roles.
+* **Smart Problem Filtering:** Auto-tagging classification engine that groups problems by topic (Arrays, DP, Graphs) into a LeetCode-style accordion interface.
+* **Robust Authentication:** Secure JWT-based user sessions with automatic token expiration handling and route protection.
+* **Production-Grade CI/CD:** GitHub Actions pipeline configured with dependency caching and live PostgreSQL service testing.
 
+## 🛠️ Tech Stack
 
----
+**Frontend (Client)**
+* **Framework:** React 19 + Vite
+* **Styling:** Tailwind CSS 4 (Glassmorphism & Dark Mode UI)
+* **Routing:** React Router v7
+* **Data Visualization:** D3.js (Physics simulations), Recharts
 
-### 📊 Weekly Analytics
-<img width="3837" height="2142" alt="Screenshot 2026-04-02 122324" src="https://github.com/user-attachments/assets/56806bb4-5604-40bf-b6f8-87efba6943b5" />
+**Backend (API & AI)**
+* **Framework:** FastAPI (Python)
+* **Database:** PostgreSQL (Hosted on Neon)
+* **ORM & Migrations:** SQLAlchemy + Alembic
+* **Authentication:** Passlib (Bcrypt) + PyJWT
+* **AI Integration:** Google Generative AI (`gemini-2.5-flash`)
 
+## 💻 Local Development Setup
 
+### Prerequisites
+* Node.js (v20+)
+* Python (3.12+)
+* PostgreSQL installed locally (or a Neon cloud database URL)
 
----
+### 1. Backend Setup
 
-### 🔥 Streak Page
+Navigate to the backend directory:
+```bash
+cd backend
 
-<img width="3830" height="2143" alt="Screenshot 2026-04-02 122351" src="https://github.com/user-attachments/assets/6d97e70e-df5b-4bc2-b38d-8f794139f712" />
-)
+```
 
-
----
-
-### 📚 Problems Page
-
-<img width="3837" height="2143" alt="Screenshot 2026-04-02 123204" src="https://github.com/user-attachments/assets/7b7078f0-7ef3-48d2-8a5b-936531698be9" />
-
-
-
----
-
-## 🛠 Tech Stack
-
-- React (Vite)
-- Tailwind CSS
-- Recharts
-- React Router
-- JavaScript (ES6)
-- LocalStorage
-
----
-
-## 🏗 Architecture Overview
+Create a virtual environment and install dependencies:
 
 ```bash
-src/
-  assets/                  # Static assets (images, icons)
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+pip install -r requirements.txt
 
-  components/              # Reusable UI components
-    AddProblemForm.jsx     # Form to add solved problems
-    Dashboard.jsx          # Main dashboard page
-    Navbar.jsx             # Navigation bar
-    Problemspage.jsx       # Problem history page
-    ProblemTable.jsx       # Table for displaying problems
-    SheetBrowser.jsx       # Sheet selection page
-    SheetCard.jsx          # Individual sheet card
-    StatsCard.jsx          # Dashboard stat cards
-    Streak.jsx             # Streak tracking and analytics
-    Weekly.jsx             # Weekly performance charts
-    Hard.jsx               # (To be replaced with AI feature)
+```
 
-  data/                    # Sheet/problem data
+Set up your environment variables by creating a `.env` file in the `backend` directory:
 
-  App.jsx                  # Root component
-  main.jsx                 # React entry point
-  index.css                # Global styles
-  App.css                  # Additional styles
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+SECRET_KEY=your_super_secret_jwt_key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+GEMINI_API_KEY=your_google_gemini_api_key
+
+```
+
+Run database migrations to build the schema:
+
+```bash
+alembic upgrade head
+
+```
+
+Seed the database with the standard problem sheets:
+
+```bash
+python seed.py
+
+```
+
+Start the FastAPI server:
+
+```bash
+uvicorn main:app --reload
+
+```
+
+### 2. Frontend Setup
+
+Open a new terminal and navigate to the frontend directory (project root):
+
+```bash
+npm install
+
+```
+
+Start the Vite development server:
+
+```bash
+npm run dev
+
+```
+
+## 🧪 Testing
+
+The backend features a fully integrated test suite verifying authentication, core business logic, and API route protection.
+
+```bash
+cd backend
+python -m pytest
+
+```
+
+## 🚢 Deployment Architecture
+
+* **Frontend:** Deployed via Vercel. CI/CD automatically triggers builds on pushes to the `main` branch.
+* **Backend:** Deployed via Render as a Web Service.
+* **Database:** Neon Serverless Postgres.
+
+## 📄 License
+
+This project is open-source and available under the [MIT License](https://www.google.com/search?q=LICENSE).
+
+```
